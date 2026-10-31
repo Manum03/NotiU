@@ -99,33 +99,62 @@ Requisitos: **Node.js 18 o superior** y npm.
    PORT=4000 npm run dev
    ```
 
-### Probarlo con curl
+### Probarlo con Postman
 
-```bash
-# Registrar un usuario
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Ana","email":"ana@uni.edu","password":"secreta123"}'
+Con el servidor corriendo (`npm run dev`):
 
-# Iniciar sesión (copiar el "token" de la respuesta)
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"ana@uni.edu","password":"secreta123"}'
+#### 1. Preparar la colección
 
-# Ver el perfil con el token
-curl http://localhost:3000/api/auth/me \
-  -H "Authorization: Bearer <token>"
+1. En Postman, crear una colección nueva llamada **NotiU**.
+2. En la pestaña **Variables** de la colección, agregar:
 
-# Cambiar la contraseña
-curl -X PATCH http://localhost:3000/api/auth/password \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{"currentPassword":"secreta123","newPassword":"nueva12345"}'
+   | Variable | Valor |
+   |---|---|
+   | `baseUrl` | `http://localhost:3000/api/auth` |
+   | `token` | (vacío, se llena solo al hacer login) |
 
-# Cerrar sesión
-curl -X POST http://localhost:3000/api/auth/logout \
-  -H "Authorization: Bearer <token>"
+3. En la pestaña **Authorization** de la colección, elegir **Bearer Token** y en *Token* poner `{{token}}`. Así todas las peticiones envían el token automáticamente.
+
+#### 2. Crear las peticiones
+
+Para las peticiones con body: pestaña **Body** → **raw** → **JSON**.
+
+| # | Nombre | Método | URL | Body (JSON) |
+|---|---|---|---|---|
+| 1 | Register | POST | `{{baseUrl}}/register` | `{"name": "Ana", "email": "ana@uni.edu", "password": "secreta123"}` |
+| 2 | Login | POST | `{{baseUrl}}/login` | `{"email": "ana@uni.edu", "password": "secreta123"}` |
+| 3 | Me | GET | `{{baseUrl}}/me` | — |
+| 4 | Change password | PATCH | `{{baseUrl}}/password` | `{"currentPassword": "secreta123", "newPassword": "nueva12345"}` |
+| 5 | Logout | POST | `{{baseUrl}}/logout` | — |
+| 6 | Users (admin) | GET | `{{baseUrl}}/users` | — |
+
+En **Register** y **Login**, pegar este script en la pestaña **Scripts → Post-response** para guardar el token en la variable automáticamente:
+
+```js
+const data = pm.response.json();
+if (data.token) {
+  pm.collectionVariables.set("token", data.token);
+}
 ```
+
+Si no se usa el script, copiar a mano el `token` de la respuesta y pegarlo en la variable `token` de la colección.
+
+#### 3. Orden sugerido para probar
+
+1. **Register** → `201 Created` con el token y los datos del usuario.
+2. **Me** → `200 OK` con el perfil de Ana.
+3. **Users (admin)** → `403 Forbidden`, porque Ana es `student`.
+4. **Change password** → `200 OK`.
+5. **Logout** → `200 OK`.
+6. **Me** otra vez → `401 Unauthorized` (`Token inválido`), porque la sesión se cerró.
+7. **Login** con `admin@notiu.com` / `admin1234` y luego **Users (admin)** → `200 OK` con la lista de usuarios.
+
+#### 4. Probar los errores
+
+- **Register** con el mismo email dos veces → `409 Conflict`.
+- **Register** con body `{"email": "x", "password": "123"}` → `400 Bad Request` con la lista de errores en `details`.
+- **Login** con una contraseña incorrecta → `401 Unauthorized`.
+- **Me** con la autorización en *No Auth* → `401 Unauthorized`.
 
 Ejemplo de respuesta de error:
 
