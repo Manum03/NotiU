@@ -4,6 +4,7 @@ import {
   CreateSubjectResponseDto,
   ListSubjectsResponseDto,
   SubjectDetailDto,
+  SubjectScheduleDto,
   UpdateSubjectResponseDto,
 } from "../models/subject.dto";
 import { subjectService } from "../services/subject.service";
@@ -38,5 +39,11 @@ export const subjectController = {
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
     const dto = validateUpdateSubject(req.body); // 400 si el body es inválido
     res.status(200).json(subjectService.updateSubject(session.userId, subjectId, dto));
+  },
+
+  getSchedule(req: Request, res: Response<SubjectScheduleDto>): void {
+    const { session } = res.locals as AuthLocals;
+    const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
+    res.status(200).json(subjectService.getSchedule(session.userId, subjectId));
   },
 };

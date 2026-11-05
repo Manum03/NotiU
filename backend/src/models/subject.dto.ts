@@ -68,3 +68,16 @@ export interface UpdateSubjectResponseDto {
   message: string;
   subject: SubjectResponseDto;
 }
+// ---- Horario (GET /api/subjects/:subjectId/schedule) ----
+export interface ScheduleSessionDto {
+  day: ScheduleBlock["day"];
+  startTime: string;
+  endTime: string;
+  room: string; // siempre presente: "" si el bloque no tiene sala
+}
+
+export interface SubjectScheduleDto {
+  subjectId: string;
+  subjectName: string;
+  sessions: ScheduleSessionDto[];
+}

@@ -13,3 +13,5 @@ subjectsRouter.get("/", subjectController.list);
 subjectsRouter.get("/:subjectId", subjectController.get);
 
 subjectsRouter.patch("/:subjectId", subjectController.update);
+
+subjectsRouter.get("/:subjectId/schedule", subjectController.getSchedule);

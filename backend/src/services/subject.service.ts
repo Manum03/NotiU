@@ -7,6 +7,7 @@ import {
   SubjectDetailDto,
   SubjectListItemDto,
   SubjectResponseDto,
+  SubjectScheduleDto,
   UpdateSubjectDto,
   UpdateSubjectResponseDto,
 } from "../models/subject.dto";
@@ -163,5 +164,21 @@ export const subjectService = {
     if (dto.schedule !== undefined) subject.schedule = dto.schedule; // reemplaza todo el horario
 
     return { message: "Materia actualizada", subject: toSubjectResponse(subject) };
+  },
+
+  getSchedule(userId: number, subjectId: string): SubjectScheduleDto {
+    const subject = getOwnedSubject(userId, subjectId); // 404 si no existe o no es suya
+
+    return {
+      subjectId: subject.id,
+      subjectName: subject.name,
+      // Ordenado por día y hora; room siempre presente ("" si el bloque no tiene sala)
+      sessions: sortSchedule(subject.schedule).map((block) => ({
+        day: block.day,
+        startTime: block.startTime,
+        endTime: block.endTime,
+        room: block.room ?? "",
+      })),
+    };
   },
 };
