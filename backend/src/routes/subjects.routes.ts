@@ -7,3 +7,5 @@ export const subjectsRouter = Router();
 subjectsRouter.use(requireAuth);
 
 subjectsRouter.post("/", subjectController.create);
+
+subjectsRouter.get("/", subjectController.list);

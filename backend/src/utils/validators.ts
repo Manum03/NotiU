@@ -6,6 +6,8 @@ import { UpdateSettingsDto } from "../models/settings.dto";
 import { THEMES, Theme } from "../models/settings.model";
 import { CreateSubjectDto } from "../models/subject.dto";
 import { ScheduleBlock, WEEK_DAYS, WeekDay } from "../models/subject.model";
+import { ListSubjectsFilters } from "../models/subject.dto";
+import { SUBJECT_STATUSES, SubjectStatus } from "../models/subject.model";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES: UserRole[] = ["student", "teacher", "admin"];
@@ -346,4 +348,44 @@ export const validateCreateSubject = (body: unknown): CreateSubjectDto => {
     color,
     schedule,
   };
+};
+// ---- Listado de materias: query params ----
+export const validateListSubjectsQuery = (query: unknown): ListSubjectsFilters => {
+  const q = (query ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const filters: ListSubjectsFilters = {};
+
+  // Un parámetro vacío (?search=) se trata como "no enviado"
+  const read = (key: string): unknown => {
+    const v = q[key];
+    return typeof v === "string" && v.trim() === "" ? undefined : v;
+  };
+
+  const semester = read("semester");
+  if (semester !== undefined) {
+    // Los query params llegan como texto: hay que convertirlos
+    const n =
+      typeof semester === "string" && /^\d{1,2}$/.test(semester.trim())
+        ? Number(semester.trim())
+        : NaN;
+    if (!(n >= 1 && n <= 12)) errors.push("Semestre fuera de rango (1-12)");
+    else filters.semester = n;
+  }
+
+  const status = read("status");
+  if (status !== undefined) {
+    if (typeof status !== "string" || !SUBJECT_STATUSES.includes(status.trim() as SubjectStatus)) {
+      errors.push(`status debe ser uno de: ${SUBJECT_STATUSES.join(", ")}`);
+    } else filters.status = status.trim() as SubjectStatus;
+  }
+
+  const search = read("search");
+  if (search !== undefined) {
+    if (typeof search !== "string" || search.trim().length > MAX_SUBJECT_NAME) {
+      errors.push(`search debe ser un texto de máximo ${MAX_SUBJECT_NAME} caracteres`);
+    } else filters.search = search.trim();
+  }
+
+  fail(errors);
+  return filters;
 };

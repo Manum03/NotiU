@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { CreateSubjectDto, CreateSubjectResponseDto, SubjectResponseDto } from "../models/subject.dto";
+import {
+  CreateSubjectDto,
+  CreateSubjectResponseDto,
+  ListSubjectsFilters,
+  ListSubjectsResponseDto,
+  SubjectListItemDto,
+  SubjectResponseDto,
+} from "../models/subject.dto";
 import { Subject } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
 
-// ---- Almacenamiento en memoria ----
+// ---- Almacenamiento en memoria (no hay base de datos) ----
 // Los datos se pierden al reiniciar el servidor
 const subjects: Subject[] = [];
 
@@ -12,9 +19,30 @@ const DEFAULT_COLOR = "#3B82F6";
 // Para comparar sin importar mayúsculas ni espacios en los bordes
 const normalize = (text: string): string => text.trim().toLowerCase();
 
+// Para buscar: además quita los acentos ("Cálculo" -> "calculo")
+const fold = (text: string): string =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
 const toSubjectResponse = ({ userId, createdAt, schedule, ...rest }: Subject): SubjectResponseDto => ({
   ...rest,
   schedule: schedule.map((block) => ({ ...block })), // copia: nadie modifica lo guardado
+});
+
+const toSubjectListItem = (s: Subject): SubjectListItemDto => ({
+  id: s.id,
+  name: s.name,
+  code: s.code,
+  credits: s.credits,
+  semester: s.semester,
+  status: s.status,
+  teacher: s.teacher,
+  color: s.color,
+  // TODO: calcular con las notas cuando exista el módulo de calificaciones
+  currentAverage: 0,
 });
 
 export const subjectService = {
@@ -45,5 +73,20 @@ export const subjectService = {
     subjects.push(subject);
 
     return { message: "Materia creada", subject: toSubjectResponse(subject) };
+  },
+
+  listSubjects(userId: number, filters: ListSubjectsFilters): ListSubjectsResponseDto {
+    const term = filters.search ? fold(filters.search) : undefined;
+
+    const data = subjects
+      .filter((s) => s.userId === userId) // PRIMERO: solo las materias del usuario
+      .filter((s) => filters.semester === undefined || s.semester === filters.semester)
+      .filter((s) => filters.status === undefined || s.status === filters.status)
+      .filter((s) => term === undefined || fold(s.name).includes(term) || fold(s.code).includes(term))
+      // filter() devuelve un arreglo nuevo, así que ordenar no altera el original
+      .sort((a, b) => a.semester - b.semester || a.name.localeCompare(b.name, "es"))
+      .map(toSubjectListItem);
+
+    return { data, total: data.length };
   },
 };
