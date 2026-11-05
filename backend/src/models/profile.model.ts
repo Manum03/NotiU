@@ -4,5 +4,6 @@ export interface Profile {
   career: string;
   semester: number;
   university: string;
+  avatarUrl?: string;
   interests: string[];
 }

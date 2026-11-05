@@ -90,6 +90,10 @@ export const authService = {
   getProfile(userId: number): PublicUser {
     return toPublicUser(findUserById(userId));
   },
+    // Cambia el nombre visible del usuario (lo usa PATCH /api/profile)
+  updateName(userId: number, name: string): void {
+    findUserById(userId).name = name;
+  },
 
   changePassword(userId: number, currentToken: string, dto: ChangePasswordDto): void {
     const user = findUserById(userId);
