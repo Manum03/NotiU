@@ -4,6 +4,8 @@ import { HttpError } from "./http-error";
 import { UpdateProfileDto } from "../models/profile.dto";
 import { UpdateSettingsDto } from "../models/settings.dto";
 import { THEMES, Theme } from "../models/settings.model";
+import { CreateSubjectDto } from "../models/subject.dto";
+import { ScheduleBlock, WEEK_DAYS, WeekDay } from "../models/subject.model";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES: UserRole[] = ["student", "teacher", "admin"];
@@ -222,4 +224,126 @@ export const validateUpdateSettings = (body: unknown): UpdateSettingsDto => {
   }
 
   return dto;
+};
+// ---- Materias ----
+const MAX_SUBJECT_NAME = 100;
+const MAX_SUBJECT_CODE = 20;
+const MAX_TEACHER = 100;
+const MAX_ROOM = 30;
+const MAX_SCHEDULE_BLOCKS = 14;
+const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/; // HH:mm en 24 horas
+
+// Se exporta porque PATCH /subjects/:id (#15) reutilizará la misma validación
+export const parseSchedule = (value: unknown, errors: string[]): ScheduleBlock[] => {
+  const errorsBefore = errors.length;
+  const blocks: ScheduleBlock[] = [];
+
+  if (!Array.isArray(value) || value.length > MAX_SCHEDULE_BLOCKS) {
+    errors.push(`schedule debe ser un arreglo de máximo ${MAX_SCHEDULE_BLOCKS} bloques`);
+    return blocks;
+  }
+
+  value.forEach((item, i) => {
+    const at = `schedule[${i}]`;
+    if (!isPlainObject(item)) {
+      errors.push(`${at} debe ser un objeto`);
+      return;
+    }
+    const blockErrorsBefore = errors.length;
+    const { day, startTime, endTime, room } = item;
+
+    if (typeof day !== "string" || !WEEK_DAYS.includes(day as WeekDay)) {
+      errors.push(`${at}.day debe ser uno de: ${WEEK_DAYS.join(", ")}`);
+    }
+    const startOk = typeof startTime === "string" && TIME_REGEX.test(startTime);
+    const endOk = typeof endTime === "string" && TIME_REGEX.test(endTime);
+    if (!startOk) errors.push(`${at}.startTime debe tener formato HH:mm (24 horas)`);
+    if (!endOk) errors.push(`${at}.endTime debe tener formato HH:mm (24 horas)`);
+    if (startOk && endOk && (startTime as string) >= (endTime as string)) {
+      errors.push(`${at}: startTime debe ser menor que endTime`);
+    }
+    if (room !== undefined && (typeof room !== "string" || room.length > MAX_ROOM)) {
+      errors.push(`${at}.room debe ser un texto de máximo ${MAX_ROOM} caracteres`);
+    }
+
+    // Solo se arma el bloque si este bloque no tuvo errores (lista blanca de campos)
+    if (errors.length === blockErrorsBefore) {
+      const block: ScheduleBlock = {
+        day: day as WeekDay,
+        startTime: startTime as string,
+        endTime: endTime as string,
+      };
+      const cleanRoom = typeof room === "string" ? room.trim() : "";
+      if (cleanRoom) block.room = cleanRoom;
+      blocks.push(block);
+    }
+  });
+
+  // Cruces de horario dentro de la misma materia (solo si todos los bloques eran válidos)
+  if (errors.length === errorsBefore) {
+    for (let i = 0; i < blocks.length; i++) {
+      for (let j = i + 1; j < blocks.length; j++) {
+        const a = blocks[i];
+        const b = blocks[j];
+        if (a.day === b.day && a.startTime < b.endTime && b.startTime < a.endTime) {
+          errors.push(`schedule[${i}] y schedule[${j}] se cruzan el día ${a.day}`);
+        }
+      }
+    }
+  }
+  return blocks;
+};
+
+export const validateCreateSubject = (body: unknown): CreateSubjectDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+
+  if (!isNonEmptyString(b.name) || b.name.trim().length > MAX_SUBJECT_NAME) {
+    errors.push(`name es obligatorio (máximo ${MAX_SUBJECT_NAME} caracteres)`);
+  }
+  if (!isNonEmptyString(b.code) || b.code.trim().length > MAX_SUBJECT_CODE) {
+    errors.push(`code es obligatorio (máximo ${MAX_SUBJECT_CODE} caracteres)`);
+  }
+
+  const c = b.credits;
+  if (typeof c !== "number" || !Number.isInteger(c) || c < 1 || c > 10) {
+    errors.push("Créditos deben ser un número entero entre 1 y 10");
+  }
+
+  const s = b.semester;
+  if (s === undefined) {
+    errors.push("semester es obligatorio");
+  } else if (typeof s !== "number" || !Number.isInteger(s) || s < 1 || s > 12) {
+    errors.push("Semestre fuera de rango (1-12)");
+  }
+
+  let teacher: string | undefined;
+  if (b.teacher !== undefined) {
+    if (typeof b.teacher !== "string" || b.teacher.length > MAX_TEACHER) {
+      errors.push(`teacher debe ser un texto de máximo ${MAX_TEACHER} caracteres`);
+    } else teacher = b.teacher.trim();
+  }
+
+  let color: string | undefined;
+  if (b.color !== undefined) {
+    if (typeof b.color !== "string" || !HEX_COLOR_REGEX.test(b.color)) {
+      errors.push("color debe ser un hexadecimal válido, por ejemplo #3B82F6");
+    } else color = b.color;
+  }
+
+  let schedule: ScheduleBlock[] | undefined;
+  if (b.schedule !== undefined) schedule = parseSchedule(b.schedule, errors);
+
+  fail(errors);
+
+  return {
+    name: (b.name as string).trim(),
+    code: (b.code as string).trim(),
+    credits: b.credits as number,
+    semester: b.semester as number,
+    teacher,
+    color,
+    schedule,
+  };
 };
