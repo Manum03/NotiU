@@ -2,6 +2,8 @@ import { ChangePasswordDto, LoginDto, RegisterDto } from "../models/auth.dto";
 import { UserRole } from "../models/user.model";
 import { HttpError } from "./http-error";
 import { UpdateProfileDto } from "../models/profile.dto";
+import { UpdateSettingsDto } from "../models/settings.dto";
+import { THEMES, Theme } from "../models/settings.model";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES: UserRole[] = ["student", "teacher", "admin"];
@@ -155,6 +157,67 @@ export const validateUpdateProfile = (body: unknown): UpdateProfileDto => {
   if (Object.keys(dto).length === 0) {
     throw new HttpError(400, "Datos inválidos", [
       "Debes enviar al menos un campo: name, bio, career, semester, avatarUrl o interests",
+    ]);
+  }
+
+  return dto;
+};
+
+// ---- Ajustes ----
+const NOTIFICATION_KEYS = ["email", "push", "studyReminders"] as const;
+const PRIVACY_KEYS = ["showProfileToPeers"] as const;
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+export const validateUpdateSettings = (body: unknown): UpdateSettingsDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+  const dto: UpdateSettingsDto = {};
+
+  if (b.theme !== undefined) {
+    if (typeof b.theme !== "string" || !THEMES.includes(b.theme as Theme)) {
+      errors.push("Valor de theme no permitido");
+    } else dto.theme = b.theme as Theme;
+  }
+
+  if (b.notifications !== undefined) {
+    if (!isPlainObject(b.notifications)) {
+      errors.push("notifications debe ser un objeto");
+    } else {
+      const input = b.notifications;
+      const parsed: NonNullable<UpdateSettingsDto["notifications"]> = {};
+      for (const key of NOTIFICATION_KEYS) {
+        if (input[key] === undefined) continue; // solo se leen las llaves permitidas
+        if (typeof input[key] !== "boolean") {
+          errors.push(`notifications.${key} debe ser true o false`);
+        } else parsed[key] = input[key] as boolean;
+      }
+      if (Object.keys(parsed).length > 0) dto.notifications = parsed;
+    }
+  }
+
+  if (b.privacy !== undefined) {
+    if (!isPlainObject(b.privacy)) {
+      errors.push("privacy debe ser un objeto");
+    } else {
+      const input = b.privacy;
+      const parsed: NonNullable<UpdateSettingsDto["privacy"]> = {};
+      for (const key of PRIVACY_KEYS) {
+        if (input[key] === undefined) continue;
+        if (typeof input[key] !== "boolean") {
+          errors.push(`privacy.${key} debe ser true o false`);
+        } else parsed[key] = input[key] as boolean;
+      }
+      if (Object.keys(parsed).length > 0) dto.privacy = parsed;
+    }
+  }
+
+  fail(errors);
+
+  if (dto.theme === undefined && dto.notifications === undefined && dto.privacy === undefined) {
+    throw new HttpError(400, "Datos inválidos", [
+      "Debes enviar al menos un ajuste: theme, notifications (email, push, studyReminders) o privacy (showProfileToPeers)",
     ]);
   }
 

@@ -7,3 +7,4 @@ export const settingsRouter = Router();
 settingsRouter.use(requireAuth);
 
 settingsRouter.get("/", settingsController.get);
+settingsRouter.patch("/", settingsController.update);
