@@ -11,3 +11,5 @@ subjectsRouter.post("/", subjectController.create);
 subjectsRouter.get("/", subjectController.list);
 
 subjectsRouter.get("/:subjectId", subjectController.get);
+
+subjectsRouter.patch("/:subjectId", subjectController.update);

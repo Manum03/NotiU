@@ -8,6 +8,7 @@ import { CreateSubjectDto } from "../models/subject.dto";
 import { ScheduleBlock, WEEK_DAYS, WeekDay } from "../models/subject.model";
 import { ListSubjectsFilters } from "../models/subject.dto";
 import { SUBJECT_STATUSES, SubjectStatus } from "../models/subject.model";
+import { UpdateSubjectDto } from "../models/subject.dto";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES: UserRole[] = ["student", "teacher", "admin"];
@@ -399,4 +400,64 @@ export const validateSubjectId = (value: unknown): string => {
   }
   // randomUUID() genera minúsculas: se normaliza para que la búsqueda siempre coincida
   return value.toLowerCase();
+};
+// ---- Actualización de materias ----
+// Mismas reglas que validateCreateSubject, pero todos los campos son opcionales.
+// Se comprueba solo lo que llega: lo que no llega no se toca.
+export const validateUpdateSubject = (body: unknown): UpdateSubjectDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+  const dto: UpdateSubjectDto = {};
+
+  if (b.name !== undefined) {
+    if (!isNonEmptyString(b.name) || b.name.trim().length > MAX_SUBJECT_NAME) {
+      errors.push(`name no puede estar vacío (máximo ${MAX_SUBJECT_NAME} caracteres)`);
+    } else dto.name = b.name.trim();
+  }
+
+  if (b.code !== undefined) {
+    if (!isNonEmptyString(b.code) || b.code.trim().length > MAX_SUBJECT_CODE) {
+      errors.push(`code no puede estar vacío (máximo ${MAX_SUBJECT_CODE} caracteres)`);
+    } else dto.code = b.code.trim();
+  }
+
+  if (b.credits !== undefined) {
+    const c = b.credits;
+    if (typeof c !== "number" || !Number.isInteger(c) || c < 1 || c > 10) {
+      errors.push("Créditos deben ser un número entero entre 1 y 10");
+    } else dto.credits = c;
+  }
+
+  if (b.semester !== undefined) {
+    const s = b.semester;
+    if (typeof s !== "number" || !Number.isInteger(s) || s < 1 || s > 12) {
+      errors.push("Semestre fuera de rango (1-12)");
+    } else dto.semester = s;
+  }
+
+  if (b.teacher !== undefined) {
+    if (typeof b.teacher !== "string" || b.teacher.length > MAX_TEACHER) {
+      errors.push(`teacher debe ser un texto de máximo ${MAX_TEACHER} caracteres`);
+    } else dto.teacher = b.teacher.trim(); // "" es válido: borra el profesor
+  }
+
+  if (b.color !== undefined) {
+    if (typeof b.color !== "string" || !HEX_COLOR_REGEX.test(b.color)) {
+      errors.push("color debe ser un hexadecimal válido, por ejemplo #3B82F6");
+    } else dto.color = b.color;
+  }
+
+  // schedule REEMPLAZA todo el horario; [] lo borra
+  if (b.schedule !== undefined) dto.schedule = parseSchedule(b.schedule, errors);
+
+  fail(errors);
+
+  // Regla: al menos un campo (los desconocidos como id, userId o status no cuentan)
+  if (Object.keys(dto).length === 0) {
+    throw new HttpError(400, "Datos inválidos", [
+      "Debes enviar al menos un campo: name, code, credits, semester, teacher, color o schedule",
+    ]);
+  }
+
+  return dto;
 };

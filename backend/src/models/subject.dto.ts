@@ -52,3 +52,19 @@ export interface SubjectDetailDto extends SubjectResponseDto {
   room: string;
   gradesSummary: GradesSummaryDto;
 }
+// ---- Actualización (PATCH /api/subjects/:subjectId) ----
+// Todo es opcional: PATCH = actualización parcial
+export interface UpdateSubjectDto {
+  name?: string;
+  code?: string;
+  credits?: number;
+  semester?: number;
+  teacher?: string;
+  color?: string;
+  schedule?: ScheduleBlock[];
+}
+
+export interface UpdateSubjectResponseDto {
+  message: string;
+  subject: SubjectResponseDto;
+}

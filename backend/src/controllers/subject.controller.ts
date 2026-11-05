@@ -4,12 +4,14 @@ import {
   CreateSubjectResponseDto,
   ListSubjectsResponseDto,
   SubjectDetailDto,
+  UpdateSubjectResponseDto,
 } from "../models/subject.dto";
 import { subjectService } from "../services/subject.service";
 import {
   validateCreateSubject,
   validateListSubjectsQuery,
   validateSubjectId,
+  validateUpdateSubject,
 } from "../utils/validators";
 
 export const subjectController = {
@@ -29,5 +31,12 @@ export const subjectController = {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // valida el formato del ID
     res.status(200).json(subjectService.getSubject(session.userId, subjectId));
+  },
+
+  update(req: Request, res: Response<UpdateSubjectResponseDto>): void {
+    const { session } = res.locals as AuthLocals;
+    const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
+    const dto = validateUpdateSubject(req.body); // 400 si el body es inválido
+    res.status(200).json(subjectService.updateSubject(session.userId, subjectId, dto));
   },
 };

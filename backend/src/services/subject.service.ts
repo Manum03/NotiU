@@ -7,6 +7,8 @@ import {
   SubjectDetailDto,
   SubjectListItemDto,
   SubjectResponseDto,
+  UpdateSubjectDto,
+  UpdateSubjectResponseDto,
 } from "../models/subject.dto";
 import { ScheduleBlock, Subject, WEEK_DAYS } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
@@ -129,5 +131,37 @@ export const subjectService = {
 
   getSubject(userId: number, subjectId: string): SubjectDetailDto {
     return toSubjectDetail(getOwnedSubject(userId, subjectId));
+  },
+
+  updateSubject(userId: number, subjectId: string, dto: UpdateSubjectDto): UpdateSubjectResponseDto {
+    const subject = getOwnedSubject(userId, subjectId); // 404 si no existe o no es suya
+
+    // Valores finales: lo enviado o, si no se envió, lo que la materia ya tenía
+    const finalName = dto.name ?? subject.name;
+    const finalCode = dto.code ?? subject.code;
+    const finalSemester = dto.semester ?? subject.semester;
+
+    // Duplicados: se compara con las OTRAS materias del usuario (se excluye la propia),
+    // en el semestre final. Así se detecta el choque al cambiar code, name o semester
+    const others = subjects.filter(
+      (s) => s.userId === userId && s.id !== subject.id && s.semester === finalSemester,
+    );
+    if (others.some((s) => normalize(s.code) === normalize(finalCode))) {
+      throw new HttpError(409, "Código de materia duplicado");
+    }
+    if (others.some((s) => normalize(s.name) === normalize(finalName))) {
+      throw new HttpError(409, "Nombre de materia duplicado");
+    }
+
+    // Todas las reglas pasaron: recién ahora se modifica (todo o nada)
+    if (dto.name !== undefined) subject.name = dto.name;
+    if (dto.code !== undefined) subject.code = dto.code;
+    if (dto.credits !== undefined) subject.credits = dto.credits;
+    if (dto.semester !== undefined) subject.semester = dto.semester;
+    if (dto.teacher !== undefined) subject.teacher = dto.teacher;
+    if (dto.color !== undefined) subject.color = dto.color;
+    if (dto.schedule !== undefined) subject.schedule = dto.schedule; // reemplaza todo el horario
+
+    return { message: "Materia actualizada", subject: toSubjectResponse(subject) };
   },
 };
