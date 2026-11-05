@@ -389,3 +389,14 @@ export const validateListSubjectsQuery = (query: unknown): ListSubjectsFilters =
   fail(errors);
   return filters;
 };
+// ---- ID de materia (parámetro de la URL) ----
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Se exporta porque los demás endpoints con :subjectId (#15 a #18, #20) la reutilizan
+export const validateSubjectId = (value: unknown): string => {
+  if (typeof value !== "string" || !UUID_REGEX.test(value)) {
+    throw new HttpError(400, "Datos inválidos", ["subjectId debe ser un UUID válido"]);
+  }
+  // randomUUID() genera minúsculas: se normaliza para que la búsqueda siempre coincida
+  return value.toLowerCase();
+};

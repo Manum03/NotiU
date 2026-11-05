@@ -4,10 +4,11 @@ import {
   CreateSubjectResponseDto,
   ListSubjectsFilters,
   ListSubjectsResponseDto,
+  SubjectDetailDto,
   SubjectListItemDto,
   SubjectResponseDto,
 } from "../models/subject.dto";
-import { Subject } from "../models/subject.model";
+import { ScheduleBlock, Subject, WEEK_DAYS } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
 
 // ---- Almacenamiento en memoria (no hay base de datos) ----
@@ -27,6 +28,16 @@ const fold = (text: string): string =>
     .toLowerCase()
     .trim();
 
+// Copia del horario ordenada por día (Lunes a Domingo) y luego por hora de inicio
+const sortSchedule = (blocks: ScheduleBlock[]): ScheduleBlock[] =>
+  blocks
+    .map((block) => ({ ...block }))
+    .sort(
+      (a, b) =>
+        WEEK_DAYS.indexOf(a.day) - WEEK_DAYS.indexOf(b.day) ||
+        a.startTime.localeCompare(b.startTime),
+    );
+
 const toSubjectResponse = ({ userId, createdAt, schedule, ...rest }: Subject): SubjectResponseDto => ({
   ...rest,
   schedule: schedule.map((block) => ({ ...block })), // copia: nadie modifica lo guardado
@@ -45,7 +56,33 @@ const toSubjectListItem = (s: Subject): SubjectListItemDto => ({
   currentAverage: 0,
 });
 
+const toSubjectDetail = (s: Subject): SubjectDetailDto => {
+  const schedule = sortSchedule(s.schedule);
+  return {
+    ...toSubjectResponse(s),
+    schedule,
+    // La sala de la materia se deriva del primer bloque que tenga una
+    room: schedule.find((block) => block.room)?.room ?? "",
+    // TODO: calcular con las notas cuando exista el módulo de calificaciones
+    gradesSummary: { count: 0, totalWeight: 0, weightedAverage: 0 },
+  };
+};
+
+/**
+ * Busca una materia por ID Y por dueño a la vez. Es la defensa contra IDOR:
+ * si la materia no existe o es de otro usuario, el resultado es el MISMO 404,
+ * para que nadie pueda descubrir qué IDs existen.
+ * La reutilizan todos los endpoints que reciben :subjectId.
+ */
+const getOwnedSubject = (userId: number, subjectId: string): Subject => {
+  const subject = subjects.find((s) => s.id === subjectId && s.userId === userId);
+  if (!subject) throw new HttpError(404, "Materia no encontrada");
+  return subject;
+};
+
 export const subjectService = {
+  getOwnedSubject,
+
   createSubject(userId: number, dto: CreateSubjectDto): CreateSubjectResponseDto {
     // Solo se comparan las materias de ESTE usuario y de ESTE semestre
     const sameSemester = subjects.filter((s) => s.userId === userId && s.semester === dto.semester);
@@ -88,5 +125,9 @@ export const subjectService = {
       .map(toSubjectListItem);
 
     return { data, total: data.length };
+  },
+
+  getSubject(userId: number, subjectId: string): SubjectDetailDto {
+    return toSubjectDetail(getOwnedSubject(userId, subjectId));
   },
 };

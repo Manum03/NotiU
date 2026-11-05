@@ -41,3 +41,14 @@ export interface ListSubjectsResponseDto {
   data: SubjectListItemDto[];
   total: number;
 }
+// ---- Detalle (GET /api/subjects/:subjectId) ----
+export interface GradesSummaryDto {
+  count: number;
+  totalWeight: number;
+  weightedAverage: number;
+}
+
+export interface SubjectDetailDto extends SubjectResponseDto {
+  room: string;
+  gradesSummary: GradesSummaryDto;
+}

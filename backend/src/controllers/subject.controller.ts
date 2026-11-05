@@ -1,8 +1,16 @@
 import { Request, Response } from "express";
 import { AuthLocals } from "../middlewares/auth.middleware";
-import { CreateSubjectResponseDto, ListSubjectsResponseDto } from "../models/subject.dto";
+import {
+  CreateSubjectResponseDto,
+  ListSubjectsResponseDto,
+  SubjectDetailDto,
+} from "../models/subject.dto";
 import { subjectService } from "../services/subject.service";
-import { validateCreateSubject, validateListSubjectsQuery } from "../utils/validators";
+import {
+  validateCreateSubject,
+  validateListSubjectsQuery,
+  validateSubjectId,
+} from "../utils/validators";
 
 export const subjectController = {
   create(req: Request, res: Response<CreateSubjectResponseDto>): void {
@@ -15,5 +23,11 @@ export const subjectController = {
     const { session } = res.locals as AuthLocals;
     const filters = validateListSubjectsQuery(req.query); // valida los query params
     res.status(200).json(subjectService.listSubjects(session.userId, filters));
+  },
+
+  get(req: Request, res: Response<SubjectDetailDto>): void {
+    const { session } = res.locals as AuthLocals;
+    const subjectId = validateSubjectId(req.params.subjectId); // valida el formato del ID
+    res.status(200).json(subjectService.getSubject(session.userId, subjectId));
   },
 };

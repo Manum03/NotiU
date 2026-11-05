@@ -9,3 +9,5 @@ subjectsRouter.use(requireAuth);
 subjectsRouter.post("/", subjectController.create);
 
 subjectsRouter.get("/", subjectController.list);
+
+subjectsRouter.get("/:subjectId", subjectController.get);
