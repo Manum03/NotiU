@@ -44,3 +44,21 @@ export interface GradeListItemDto {
 export interface ListGradesResponseDto {
   data: GradeListItemDto[];
 }
+// ---- Avance (GET /api/subjects/:subjectId/progress) ----
+export type ProgressStatus =
+  | "aprobada" // no queda nada por evaluar y alcanzó la nota mínima
+  | "reprobada" // no queda nada por evaluar y no la alcanzó
+  | "aprobacion_asegurada" // aunque saque 0 en lo que falta, ya aprueba
+  | "imposible_aprobar" // necesitaría más de 5.0 en lo que falta
+  | "en_curso";
+
+export interface SubjectProgressDto {
+  subjectId: string;
+  evaluatedPercentage: number;
+  remainingPercentage: number;
+  accumulatedScore: number;
+  currentAverage: number;
+  neededToPass: number | null; // null solo si ya no queda porcentaje por evaluar
+  minPassingGrade: number;
+  status: ProgressStatus;
+}

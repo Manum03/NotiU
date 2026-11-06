@@ -11,3 +11,5 @@ export interface Grade {
   date: string; // ISO 8601, tal como la envió el cliente
   createdAt: string; // ISO 8601
 }
+// Nota mínima para aprobar una materia (escala 0.0 a 5.0)
+export const MIN_PASSING_GRADE = 3.0;

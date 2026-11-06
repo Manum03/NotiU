@@ -4,6 +4,7 @@ import {
   CreateGradeResponseDto,
   ListGradesResponseDto,
   SubjectGradesResponseDto,
+  SubjectProgressDto,
 } from "../models/grade.dto";
 import { gradeService } from "../services/grade.service";
 import { subjectService } from "../services/subject.service";
@@ -36,5 +37,12 @@ export const gradeController = {
     // Solo las materias del usuario: de ahí sale el aislamiento del consolidado
     const subjects = subjectService.getOwnedSubjects(session.userId);
     res.status(200).json(gradeService.listByUser(subjects, filters));
+  },
+
+  getProgress(req: Request, res: Response<SubjectProgressDto>): void {
+    const { session } = res.locals as AuthLocals;
+    const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
+    const subject = subjectService.getOwnedSubject(session.userId, subjectId); // 404
+    res.status(200).json(gradeService.getProgress(subject));
   },
 };

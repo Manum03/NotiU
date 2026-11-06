@@ -6,9 +6,11 @@ import {
   GradeListItemDto,
   ListGradesFilters,
   ListGradesResponseDto,
+  ProgressStatus,
   SubjectGradesResponseDto,
+  SubjectProgressDto,
 } from "../models/grade.dto";
-import { Grade } from "../models/grade.model";
+import { Grade, MIN_PASSING_GRADE } from "../models/grade.model";
 import { GradesSummaryDto } from "../models/subject.dto";
 import { Subject } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
@@ -21,6 +23,7 @@ const grades: Grade[] = [];
 // errores de decimales: 33.3 + 33.3 + 33.4 debe dar exactamente 100
 const toHundredths = (n: number): number => Math.round(n * 100);
 const TOTAL_HUNDREDTHS = 10000; // 100%
+const MAX_SCORE = 5;
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -37,20 +40,72 @@ const gradesOf = (subjectId: string): Grade[] => grades.filter((g) => g.subjectI
 // Copia de la nota sin subjectId (ya va en la raíz de la respuesta)
 const toGradeItem = ({ subjectId, ...rest }: Grade): GradeItemDto => ({ ...rest });
 
-// Fórmula única del promedio ponderado: la reutilizan #20, #12 y #13
-const summarize = (subjectGrades: Grade[]): GradesSummaryDto => {
-  let weightSum = 0; // Σ porcentaje (en centésimas)
-  let weighted = 0; // Σ nota × porcentaje (centésimas × centésimas)
+// Base común de todos los cálculos, en enteros exactos:
+// - weightSum: Σ porcentaje, en centésimas de % (10000 = 100%)
+// - weighted:  Σ nota × porcentaje (puntos ganados = weighted / 1.000.000)
+const totalsOf = (subjectGrades: Grade[]): { weightSum: number; weighted: number } => {
+  let weightSum = 0;
+  let weighted = 0;
   for (const g of subjectGrades) {
     const w = toHundredths(g.weight);
     weightSum += w;
     weighted += toHundredths(g.score) * w;
   }
+  return { weightSum, weighted };
+};
+
+// Fórmula única del promedio ponderado: la reutilizan #20, #12 y #13
+const summarize = (subjectGrades: Grade[]): GradesSummaryDto => {
+  const { weightSum, weighted } = totalsOf(subjectGrades);
   return {
     count: subjectGrades.length,
     totalWeight: weightSum / 100,
     // Sin notas no hay promedio: se devuelve 0 (se distingue por count === 0)
     weightedAverage: weightSum === 0 ? 0 : round2(weighted / weightSum / 100),
+  };
+};
+
+// División entera HACIA ARRIBA, solo con enteros positivos (sin errores de coma flotante)
+const ceilDiv = (a: number, b: number): number => {
+  const n = a + b - 1;
+  return (n - (n % b)) / b;
+};
+
+// Avance de la materia: porcentaje evaluado y nota necesaria para aprobar
+const buildProgress = (subjectId: string, subjectGrades: Grade[]): SubjectProgressDto => {
+  const { weightSum, weighted } = totalsOf(subjectGrades);
+  const remaining = TOTAL_HUNDREDTHS - weightSum; // centésimas de % que faltan por evaluar
+  // La nota mínima en las mismas unidades que "weighted" (3.0 -> 3.000.000)
+  const minPoints = toHundredths(MIN_PASSING_GRADE) * TOTAL_HUNDREDTHS;
+  const missing = minPoints - weighted; // puntos que faltan para llegar a la nota mínima
+
+  let neededToPass: number | null;
+  let status: ProgressStatus;
+
+  if (remaining === 0) {
+    // Ya está todo evaluado: no hay porcentaje donde sacar una nota
+    neededToPass = null;
+    status = missing <= 0 ? "aprobada" : "reprobada";
+  } else if (missing <= 0) {
+    // Aunque saque 0 en lo que falta, ya aprueba
+    neededToPass = 0;
+    status = "aprobacion_asegurada";
+  } else {
+    // Nota necesaria en lo que falta, redondeada HACIA ARRIBA a 2 decimales
+    // para que el valor mostrado siempre alcance (missing / remaining = centésimas de nota)
+    neededToPass = ceilDiv(missing, remaining) / 100;
+    status = neededToPass > MAX_SCORE ? "imposible_aprobar" : "en_curso";
+  }
+
+  return {
+    subjectId,
+    evaluatedPercentage: weightSum / 100,
+    remainingPercentage: remaining / 100,
+    accumulatedScore: round2(weighted / 1_000_000),
+    currentAverage: weightSum === 0 ? 0 : round2(weighted / weightSum / 100),
+    neededToPass,
+    minPassingGrade: MIN_PASSING_GRADE,
+    status,
   };
 };
 
@@ -132,5 +187,9 @@ export const gradeService = {
     );
 
     return { data };
+  },
+
+  getProgress(subject: Subject): SubjectProgressDto {
+    return buildProgress(subject.id, gradesOf(subject.id));
   },
 };
