@@ -81,3 +81,9 @@ export interface SubjectScheduleDto {
   subjectName: string;
   sessions: ScheduleSessionDto[];
 }
+// ---- Eliminación (DELETE /api/subjects/:subjectId) ----
+export interface DeleteSubjectResponseDto {
+  message: string;
+  deletedId: string;
+  deletedGrades: number; // cuántas notas se eliminaron junto con la materia
+}

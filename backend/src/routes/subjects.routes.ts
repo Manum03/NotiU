@@ -22,3 +22,5 @@ subjectsRouter.post("/:subjectId/grades", gradeController.create);
 subjectsRouter.get("/:subjectId/grades", gradeController.listBySubject);
 
 subjectsRouter.get("/:subjectId/progress", gradeController.getProgress);
+
+subjectsRouter.delete("/:subjectId", subjectController.remove);

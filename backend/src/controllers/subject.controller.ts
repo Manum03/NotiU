@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AuthLocals } from "../middlewares/auth.middleware";
 import {
   CreateSubjectResponseDto,
+  DeleteSubjectResponseDto,
   ListSubjectsResponseDto,
   SubjectDetailDto,
   SubjectScheduleDto,
@@ -45,5 +46,11 @@ export const subjectController = {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
     res.status(200).json(subjectService.getSchedule(session.userId, subjectId));
+  },
+
+  remove(req: Request, res: Response<DeleteSubjectResponseDto>): void {
+    const { session } = res.locals as AuthLocals;
+    const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
+    res.status(200).json(subjectService.deleteSubject(session.userId, subjectId));
   },
 };

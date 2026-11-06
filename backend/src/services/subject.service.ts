@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   CreateSubjectDto,
   CreateSubjectResponseDto,
+  DeleteSubjectResponseDto,
   ListSubjectsFilters,
   ListSubjectsResponseDto,
   SubjectDetailDto,
@@ -85,7 +86,8 @@ const getOwnedSubject = (userId: number, subjectId: string): Subject => {
 
 export const subjectService = {
   getOwnedSubject,
-    // Materias del usuario, para uso de otros services y controllers.
+
+  // Materias del usuario, para uso de otros services y controllers.
   // No se envía tal cual al cliente: incluye el userId interno
   getOwnedSubjects(userId: number): Subject[] {
     return subjects.filter((s) => s.userId === userId);
@@ -184,6 +186,26 @@ export const subjectService = {
         endTime: block.endTime,
         room: block.room ?? "",
       })),
+    };
+  },
+
+  // Borrado físico y en cascada: elimina las notas de la materia y luego la materia.
+  // Es irreversible. TODO: cuando exista el módulo de apuntes, los que referencien
+  // esta materia deben quedar con subjectId = null en lugar de borrarse
+  deleteSubject(userId: number, subjectId: string): DeleteSubjectResponseDto {
+    const subject = getOwnedSubject(userId, subjectId); // 404 si no existe o no es suya
+
+    // Todo es síncrono: no hay forma de ver la materia a medio borrar
+    const deletedGrades = gradeService.deleteBySubject(subject.id);
+    subjects.splice(
+      subjects.findIndex((s) => s.id === subject.id),
+      1,
+    );
+
+    return {
+      message: "Materia y registros asociados eliminados",
+      deletedId: subject.id,
+      deletedGrades,
     };
   },
 };

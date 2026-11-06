@@ -16,8 +16,9 @@ import { Subject } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
 
 // ---- Almacenamiento en memoria (no hay base de datos) ----
-// Los datos se pierden al reiniciar el servidor
-const grades: Grade[] = [];
+// Los datos se pierden al reiniciar el servidor.
+// Es "let" porque al borrar una materia se reemplaza por la lista sin sus notas
+let grades: Grade[] = [];
 
 // Los porcentajes y las notas se calculan en centésimas (enteros) para evitar
 // errores de decimales: 33.3 + 33.3 + 33.4 debe dar exactamente 100
@@ -191,5 +192,13 @@ export const gradeService = {
 
   getProgress(subject: Subject): SubjectProgressDto {
     return buildProgress(subject.id, gradesOf(subject.id));
+  },
+
+  // Borrado en cascada: elimina todas las notas de una materia y devuelve cuántas fueron.
+  // La materia ya viene validada (propiedad comprobada) por quien llama
+  deleteBySubject(subjectId: string): number {
+    const before = grades.length;
+    grades = grades.filter((g) => g.subjectId !== subjectId);
+    return before - grades.length;
   },
 };
