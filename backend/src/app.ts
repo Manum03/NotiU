@@ -5,6 +5,7 @@ import { notificationsRouter } from "./routes/notifications.routes";
 import { profileRouter } from "./routes/profile.routes";   
 import { settingsRouter } from "./routes/settings.routes"; 
 import { subjectsRouter } from "./routes/subjects.routes";
+import { gradesRouter } from "./routes/grades.routes";
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.use("/api/profile", profileRouter);
 
 app.use("/api/settings", settingsRouter);  
 app.use("/api/subjects", subjectsRouter);   
+app.use("/api/grades", gradesRouter);  
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -24,3 +24,23 @@ export interface SubjectGradesResponseDto {
   totalWeight: number;
   weightedAverage: number;
 }
+// ---- Consolidado (GET /api/grades) ----
+export interface ListGradesFilters {
+  semester?: number;
+  corte?: Corte;
+}
+
+export interface GradeListItemDto {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  title: string;
+  score: number;
+  weight: number;
+  corte?: Corte;
+  date: string;
+}
+
+export interface ListGradesResponseDto {
+  data: GradeListItemDto[];
+}

@@ -11,6 +11,7 @@ import { SUBJECT_STATUSES, SubjectStatus } from "../models/subject.model";
 import { UpdateSubjectDto } from "../models/subject.dto";
 import { CreateGradeDto } from "../models/grade.dto";
 import { CORTES, Corte } from "../models/grade.model";
+import { ListGradesFilters } from "../models/grade.dto";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES: UserRole[] = ["student", "teacher", "admin"];
@@ -550,4 +551,38 @@ export const validateCreateGrade = (body: unknown): CreateGradeDto => {
     corte,
     date,
   };
+};
+// ---- Consolidado de notas: query params ----
+// Un parámetro vacío (?corte=) se trata como "no enviado"
+const readQueryText = (q: Record<string, unknown>, key: string): unknown => {
+  const v = q[key];
+  return typeof v === "string" && v.trim() === "" ? undefined : v;
+};
+
+export const validateListGradesQuery = (query: unknown): ListGradesFilters => {
+  const q = (query ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const filters: ListGradesFilters = {};
+
+  const semester = readQueryText(q, "semester");
+  if (semester !== undefined) {
+    // Los query params llegan como texto: hay que convertirlos
+    const n =
+      typeof semester === "string" && /^\d{1,2}$/.test(semester.trim())
+        ? Number(semester.trim())
+        : NaN;
+    if (!(n >= 1 && n <= 12)) errors.push("Semestre fuera de rango (1-12)");
+    else filters.semester = n;
+  }
+
+  const corte = readQueryText(q, "corte");
+  if (corte !== undefined) {
+    const n = typeof corte === "string" && /^\d$/.test(corte.trim()) ? Number(corte.trim()) : NaN;
+    if (!CORTES.includes(n as Corte)) {
+      errors.push(`corte debe ser uno de: ${CORTES.join(", ")}`);
+    } else filters.corte = n as Corte;
+  }
+
+  fail(errors);
+  return filters;
 };

@@ -85,6 +85,11 @@ const getOwnedSubject = (userId: number, subjectId: string): Subject => {
 
 export const subjectService = {
   getOwnedSubject,
+    // Materias del usuario, para uso de otros services y controllers.
+  // No se envía tal cual al cliente: incluye el userId interno
+  getOwnedSubjects(userId: number): Subject[] {
+    return subjects.filter((s) => s.userId === userId);
+  },
 
   createSubject(userId: number, dto: CreateSubjectDto): CreateSubjectResponseDto {
     // Solo se comparan las materias de ESTE usuario y de ESTE semestre

@@ -3,6 +3,9 @@ import {
   CreateGradeDto,
   CreateGradeResponseDto,
   GradeItemDto,
+  GradeListItemDto,
+  ListGradesFilters,
+  ListGradesResponseDto,
   SubjectGradesResponseDto,
 } from "../models/grade.dto";
 import { Grade } from "../models/grade.model";
@@ -94,5 +97,40 @@ export const gradeService = {
       .map(toGradeItem);
 
     return { subjectId: subject.id, grades: ordered, totalWeight, weightedAverage };
+  },
+
+  // Consolidado de todas las notas del usuario. Recibe SUS materias (el controller las
+  // obtiene): una nota solo se incluye si su materia está en esa lista
+  listByUser(subjects: Subject[], filters: ListGradesFilters): ListGradesResponseDto {
+    const subjectById = new Map(subjects.map((s) => [s.id, s]));
+    const data: GradeListItemDto[] = [];
+
+    for (const g of grades) {
+      const subject = subjectById.get(g.subjectId);
+      if (!subject) continue; // PRIMERO: la nota debe ser de una materia del usuario
+      if (filters.semester !== undefined && subject.semester !== filters.semester) continue;
+      if (filters.corte !== undefined && g.corte !== filters.corte) continue; // sin corte: no entra
+
+      data.push({
+        id: g.id,
+        subjectId: g.subjectId,
+        subjectName: subject.name, // se toma de la materia: refleja renombres
+        title: g.title,
+        score: g.score,
+        weight: g.weight,
+        corte: g.corte,
+        date: g.date,
+      });
+    }
+
+    // Más reciente primero; si coincide la fecha, por materia y luego por título
+    data.sort(
+      (a, b) =>
+        Date.parse(b.date) - Date.parse(a.date) ||
+        a.subjectName.localeCompare(b.subjectName, "es") ||
+        a.title.localeCompare(b.title, "es"),
+    );
+
+    return { data };
   },
 };
