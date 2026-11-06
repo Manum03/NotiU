@@ -9,6 +9,8 @@ import { ScheduleBlock, WEEK_DAYS, WeekDay } from "../models/subject.model";
 import { ListSubjectsFilters } from "../models/subject.dto";
 import { SUBJECT_STATUSES, SubjectStatus } from "../models/subject.model";
 import { UpdateSubjectDto } from "../models/subject.dto";
+import { CreateGradeDto } from "../models/grade.dto";
+import { CORTES, Corte } from "../models/grade.model";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROLES: UserRole[] = ["student", "teacher", "admin"];
@@ -460,4 +462,92 @@ export const validateUpdateSubject = (body: unknown): UpdateSubjectDto => {
   }
 
   return dto;
+};
+// ---- Calificaciones ----
+const MAX_GRADE_TITLE = 100;
+const ISO_DATE_REGEX =
+  /^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+// true si el número tiene como máximo 2 decimales (tolerando el error de coma flotante)
+const hasAtMostTwoDecimals = (n: number): boolean => Math.abs(n * 100 - Math.round(n * 100)) < 1e-9;
+
+// Valida una fecha ISO 8601 ("2026-03-15" o "2026-03-15T10:30:00Z") y que el día exista
+const isValidIsoDate = (value: string): boolean => {
+  const match = ISO_DATE_REGEX.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1900 || year > 2100) return false;
+
+  // Si el día no existe (por ejemplo 2026-02-30), la fecha "se corre" al mes siguiente
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return false;
+  }
+  return !Number.isNaN(Date.parse(value)); // comprueba también la parte de la hora
+};
+
+export const validateCreateGrade = (body: unknown): CreateGradeDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+
+  if (!isNonEmptyString(b.title) || b.title.trim().length > MAX_GRADE_TITLE) {
+    errors.push(`title es obligatorio (máximo ${MAX_GRADE_TITLE} caracteres)`);
+  }
+
+  const score = b.score;
+  if (score === undefined) {
+    errors.push("score es obligatorio");
+  } else if (
+    typeof score !== "number" ||
+    !Number.isFinite(score) ||
+    score < 0 ||
+    score > 5 ||
+    !hasAtMostTwoDecimals(score)
+  ) {
+    errors.push("Nota fuera de rango (0.0-5.0, máximo 2 decimales)");
+  }
+
+  const weight = b.weight;
+  if (weight === undefined) {
+    errors.push("weight es obligatorio");
+  } else if (
+    typeof weight !== "number" ||
+    !Number.isFinite(weight) ||
+    weight < 1 ||
+    weight > 100 ||
+    !hasAtMostTwoDecimals(weight)
+  ) {
+    errors.push("Porcentaje fuera de rango (1-100, máximo 2 decimales)");
+  }
+
+  let corte: Corte | undefined;
+  if (b.corte !== undefined) {
+    if (typeof b.corte !== "number" || !CORTES.includes(b.corte as Corte)) {
+      errors.push(`corte debe ser uno de: ${CORTES.join(", ")}`);
+    } else corte = b.corte as Corte;
+  }
+
+  let date: string | undefined;
+  if (b.date !== undefined) {
+    if (typeof b.date !== "string" || !isValidIsoDate(b.date.trim())) {
+      errors.push("date debe ser una fecha ISO 8601 válida, por ejemplo 2026-03-15");
+    } else date = b.date.trim();
+  }
+
+  fail(errors);
+
+  return {
+    title: (b.title as string).trim(),
+    score: score as number,
+    weight: weight as number,
+    corte,
+    date,
+  };
 };

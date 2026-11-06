@@ -13,6 +13,7 @@ import {
 } from "../models/subject.dto";
 import { ScheduleBlock, Subject, WEEK_DAYS } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
+import { gradeService } from "./grade.service";
 
 // ---- Almacenamiento en memoria (no hay base de datos) ----
 // Los datos se pierden al reiniciar el servidor
@@ -55,8 +56,8 @@ const toSubjectListItem = (s: Subject): SubjectListItemDto => ({
   status: s.status,
   teacher: s.teacher,
   color: s.color,
-  // TODO: calcular con las notas cuando exista el módulo de calificaciones
-  currentAverage: 0,
+  // Promedio ponderado de las notas registradas (0 si la materia aún no tiene notas)
+  currentAverage: gradeService.getSummary(s.id).weightedAverage,
 });
 
 const toSubjectDetail = (s: Subject): SubjectDetailDto => {
@@ -66,8 +67,7 @@ const toSubjectDetail = (s: Subject): SubjectDetailDto => {
     schedule,
     // La sala de la materia se deriva del primer bloque que tenga una
     room: schedule.find((block) => block.room)?.room ?? "",
-    // TODO: calcular con las notas cuando exista el módulo de calificaciones
-    gradesSummary: { count: 0, totalWeight: 0, weightedAverage: 0 },
+    gradesSummary: gradeService.getSummary(s.id), // { count, totalWeight, weightedAverage }
   };
 };
 
