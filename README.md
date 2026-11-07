@@ -1,71 +1,127 @@
-# NotiU
+# NotiU — Asistente Académico y Centralizador de Notificaciones
+
+**NotiU** nace con el propósito de acompañar a los estudiantes universitarios en su vida académica, ofreciendo un espacio intuitivo donde centralizar alertas de plataformas externas (Moodle, Google Classroom, Microsoft Teams, correo), organizar materias y horarios, llevar apuntes/recordatorios, aplicar técnicas de estudio (Pomodoro) y proyectar su avance de calificaciones por cortes.
+
+| Campo | Detalle |
+|---|---|
+| **Asignatura** | Construcción de Software |
+| **Docente** | Diego Andrés Baquero Tibocha |
+| **Integrantes** | Alejandro Rodríguez, Alejandro Martínez, David Muñoz, Yorman Sanabria y Jireth Suárez |
+| **Versión actual** | `v0.5.0` |
+| **Repositorio** | https://github.com/Manum03/NotiU |
+| **Colección Postman** | [NotiU-Workspace (Colección oficial compartida)](https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share&creator=59230493) |
+
+---
 
 ## Estructura del repositorio
 
 ```
 NotiU/
-├── backend/   API en Node.js + TypeScript
-├── mobile/    Aplicación móvil
-└── docs/      Documentación
+├── backend/                          API REST en Node.js + Express 5 + TypeScript
+├── mobile/                           Arquitectura base de la aplicación móvil
+└── docs/                             Documentación formal en LaTeX
+    ├── documentacion_notiu.tex       Manual técnico, guía UI/UX y notas de versión
+    └── terminos_y_condiciones.tex    Términos y condiciones básicos (1 página)
 ```
 
-## Backend: API de autenticación (login)
+---
 
-API REST hecha con **Node.js**, **TypeScript** y **Express 5**.
+## Documentación en LaTeX (`docs/`)
 
-- **Sin base de datos:** los usuarios y las sesiones se guardan en arrays en memoria, así que se reinician cada vez que se reinicia el servidor.
-- **Tipado:** modelos (`User`, `Session`) y DTOs de request/response definidos en TypeScript.
-- **Validaciones:** campos obligatorios, formato de email, contraseña de mínimo 8 caracteres y rol válido. Todos los errores se devuelven juntos en `details`.
-- **Manejo de errores:** respuestas JSON uniformes con los códigos 400, 401, 403, 404, 409 y 500, incluido el caso de JSON mal formado.
-- **Seguridad:** las contraseñas se guardan hasheadas con `scrypt` (módulo `crypto` de Node). Los tokens son aleatorios y expiran en 1 hora.
+Toda la especificación formal del proyecto está redactada en **LaTeX** dentro de la carpeta `docs/`:
 
-### Endpoints
+- **`docs/documentacion_notiu.tex`**: Documentación unificada con propósito e identidad de marca (simbolismo del zorro y el estilógrafo), hoja de estilos UI/UX (tipografías *Bebas Neue* y *Playfair Display*, paleta oficial de 17 colores HEX), módulos móviles, catálogo de API y notas de versión (`v0.1.0` – `v0.5.0`).
+- **`docs/terminos_y_condiciones.tex`**: Versión básica preliminar de **máximo una (1) página** con los términos y condiciones necesarios para la etapa actual de prototipo.
 
-Base: `http://localhost:3000/api/auth`
+Para compilarlos a PDF localmente (TeX Live / MiKTeX) o en **Overleaf**:
 
-| Método | Ruta | Requiere token | Descripción |
-|---|---|---|---|
-| POST | `/register` | No | Registra un usuario y devuelve un token (201) |
-| POST | `/login` | No | Inicia sesión con email y contraseña, devuelve un token |
-| GET | `/me` | Sí | Devuelve el perfil del usuario autenticado |
-| PATCH | `/password` | Sí | Cambia la contraseña y cierra las demás sesiones del usuario |
-| POST | `/logout` | Sí | Cierra la sesión actual |
-| GET | `/users` | Sí (solo admin) | Lista los usuarios, sin la contraseña |
+```bash
+cd docs
+pdflatex documentacion_notiu.tex
+pdflatex documentacion_notiu.tex   # segunda pasada para actualizar el índice
+pdflatex terminos_y_condiciones.tex
+```
 
-También existe `GET /api/health` para comprobar que el servidor está arriba.
+---
 
-Los endpoints protegidos necesitan el header:
+## Identidad visual y módulos móviles (`mobile/`)
+
+- **Isotipo:** El **zorro** simboliza inteligencia, astucia y adaptación; el trazo central inspirado en la punta de un **estilógrafo** conecta la marca con la escritura, los apuntes y la construcción de ideas.
+- **Tipografías:** `Bebas Neue` (logotipo, encabezados y botones CTA) y `Playfair Display` (textos descriptivos).
+- **Paleta principal:** Fondo base `#10060A` / `#260A13`, acento primario Carmesí Vívido `#AA0330`, texto cálido `#E9DDD3` y colores semánticos de urgencia (`#EE6520` Alta, `#EEE620` Media, `#20EEDB` Baja, `#BF20EE` Sin fecha).
+- **Pantallas diseñadas:**
+  1. **Bienvenida, Registro e Inicio de Sesión** (`features/auth`)
+  2. **Dashboard de Inicio y Conexiones externas** (calendario, avance semanal y enlace con Correo, Classroom, Universidad/Moodle y Teams)
+  3. **Mis Materias** (filtros por estado y prioridad, avance porcentual y detalle de entregas)
+  4. **Notas y Recordatorios** (`Mis Apuntes`, creación rápida con prioridad y materia opcional)
+  5. **Mi Espacio / Plan de Estudio** (temporizador Pomodoro 25/5 min, categorías de estudio y *"El consejo de tu zorro"*)
+  6. **Mi Perfil y Centro de Ayuda** (`features/profile`, datos académicos, seguridad, notificaciones y apariencia)
+
+---
+
+## Backend: API REST (`backend/`)
+
+API REST construida con **Node.js**, **TypeScript** y **Express 5**.
+
+- **Sin base de datos (prototipo actual):** usuarios, sesiones, materias, calificaciones, ajustes y notificaciones se almacenan en arreglos en memoria (se reinician al reiniciar el servidor).
+- **Tipado estricto:** modelos de dominio y DTOs de entrada/salida en TypeScript.
+- **Validaciones:** campos obligatorios, formato de email, contraseña de mínimo 8 caracteres, rangos de notas (`0.0`–`5.0`), cortes (`1`–`4`) y bloques horarios; errores detallados en `details`.
+- **Manejo de errores:** respuestas JSON uniformes con códigos `400`, `401`, `403`, `404`, `409` y `500` (incluyendo JSON mal formado).
+- **Seguridad:** contraseñas hasheadas con `scrypt` (`crypto` nativo de Node). Tokens Bearer aleatorios con expiración de 1 hora.
+
+### Cobertura de Endpoints (`v0.5.0`)
+
+Del inventario general de **43 endpoints** diseñados para NotiU (base `http://localhost:3000`), el backend cuenta con **22 endpoints implementados**:
+
+| Módulo | Método | Ruta | Auth | Descripción |
+|---|---|---|---|---|
+| **Health** | `GET` | `/api/health` | No | Comprueba que el servidor está activo (`{ status: "ok" }`) |
+| **Auth** | `POST` | `/api/auth/register` | No | Registra un usuario y devuelve un token (`201`) |
+| **Auth** | `POST` | `/api/auth/login` | No | Inicia sesión con email y contraseña, devuelve un token |
+| **Auth** | `GET` | `/api/auth/me` | Sí | Devuelve el perfil público del usuario autenticado |
+| **Auth** | `PATCH` | `/api/auth/password` | Sí | Cambia la contraseña y cierra las demás sesiones del usuario |
+| **Auth** | `POST` | `/api/auth/logout` | Sí | Cierra la sesión actual |
+| **Auth** | `GET` | `/api/auth/users` | Sí (`admin`) | Lista los usuarios registrados sin el hash de contraseña |
+| **Notificaciones** | `GET` | `/api/notifications` | Sí | Lista alertas paginadas (`MOODLE`, `CLASSROOM`, `SYSTEM`) con `unreadCount` y filtros (`category`, `read`) |
+| **Perfil** | `GET` | `/api/profile` | Sí | Obtiene datos académicos (universidad, carrera, semestre, bio, intereses) |
+| **Perfil** | `PATCH` | `/api/profile` | Sí | Actualiza parcialmente el perfil del estudiante |
+| **Ajustes** | `GET` | `/api/settings` | Sí | Consulta tema (`light`/`dark`/`system`), alertas y privacidad |
+| **Ajustes** | `PATCH` | `/api/settings` | Sí | Modifica parcialmente preferencias de tema, alertas o privacidad |
+| **Materias** | `POST` | `/api/subjects` | Sí | Crea una materia con créditos, semestre, docente, color y horario |
+| **Materias** | `GET` | `/api/subjects` | Sí | Lista materias del usuario con filtros (`semester`, `status`, `search`) |
+| **Materias** | `GET` | `/api/subjects/:subjectId` | Sí | Obtiene el detalle de la materia y su resumen de notas |
+| **Materias** | `PATCH` | `/api/subjects/:subjectId` | Sí | Actualiza parcialmente los datos u horario de una materia |
+| **Materias** | `GET` | `/api/subjects/:subjectId/schedule` | Sí | Devuelve las sesiones semanales de horario de la materia |
+| **Materias** | `DELETE` | `/api/subjects/:subjectId` | Sí | Elimina la materia y sus calificaciones vinculadas *(en `main` `v0.5.0`)* |
+| **Notas** | `POST` | `/api/subjects/:subjectId/grades` | Sí | Registra una nota (`0.0–5.0`), porcentaje (`1–100`) y corte (`1–4`) *(en `main` `v0.5.0`)* |
+| **Notas** | `GET` | `/api/subjects/:subjectId/grades` | Sí | Lista las notas de una materia y su promedio ponderado *(en `main` `v0.5.0`)* |
+| **Notas** | `GET` | `/api/subjects/:subjectId/progress` | Sí | Proyecta estado de aprobación y nota necesaria en lo restante *(en `main` `v0.5.0`)* |
+| **Notas** | `GET` | `/api/grades` | Sí | Consolidado general de notas filtrable por `semester` y `corte` *(en `main` `v0.5.0`)* |
+
+Los endpoints protegidos requieren el encabezado:
 
 ```
 Authorization: Bearer <token>
 ```
 
-**Usuario de prueba** (se crea al iniciar el servidor):
+**Usuario de prueba** (se crea automáticamente al iniciar el servidor):
 
 - Email: `admin@notiu.com`
 - Contraseña: `admin1234`
 - Rol: `admin`
 
-### Estructura del código
+### Estructura del código (`backend/src/`)
 
 ```
 backend/src/
 ├── config/env.ts                      Puerto y duración de la sesión
-├── models/
-│   ├── user.model.ts                  Modelo User y PublicUser
-│   ├── session.model.ts               Modelo Session
-│   └── auth.dto.ts                    DTOs de request y response
-├── utils/
-│   ├── validators.ts                  Validación de los bodies
-│   ├── password.ts                    Hash y verificación de contraseñas
-│   └── http-error.ts                  Clase HttpError
-├── services/auth.service.ts           Lógica y arrays en memoria
-├── middlewares/
-│   ├── auth.middleware.ts             requireAuth y requireRole
-│   └── error.middleware.ts            Manejo de errores y 404
-├── controllers/auth.controller.ts     Controladores HTTP
-├── routes/auth.routes.ts              Definición de rutas
-├── app.ts                             Configuración de Express
+├── models/                            Modelos de dominio y DTOs (auth, profile, settings, subject, grade, notification)
+├── utils/                             Validadores, hash scrypt y clase HttpError
+├── services/                          Lógica de negocio y almacenamiento en memoria
+├── middlewares/                       requireAuth, requireRole, manejo de errores y 404
+├── controllers/                       Controladores HTTP por módulo
+├── routes/                            Definición de rutas Express
+├── app.ts                             Configuración principal de Express
 └── server.ts                          Arranque del servidor
 ```
 
@@ -101,7 +157,7 @@ Requisitos: **Node.js 18 o superior** y npm.
 
 ### Probarlo con Postman
 
-Con el servidor corriendo (`npm run dev`):
+Puedes importar o abrir directamente la [colección oficial compartida en Postman](https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share&creator=59230493), o configurar una colección rápida para autenticación así:
 
 #### 1. Preparar la colección
 
@@ -115,7 +171,7 @@ Con el servidor corriendo (`npm run dev`):
 
 3. En la pestaña **Authorization** de la colección, elegir **Bearer Token** y en *Token* poner `{{token}}`. Así todas las peticiones envían el token automáticamente.
 
-#### 2. Crear las peticiones
+#### 2. Crear las peticiones base de Auth
 
 Para las peticiones con body: pestaña **Body** → **raw** → **JSON**.
 
@@ -167,5 +223,15 @@ Ejemplo de respuesta de error:
 
 ### Limitaciones conocidas
 
-- Los datos se pierden al reiniciar el servidor (no hay base de datos).
-- `/register` acepta cualquier `role`, incluido `admin`.
+- Los datos se pierden al reiniciar el servidor (no hay base de datos persistente todavía).
+- `/api/auth/register` acepta cualquier `role` enviado en el body, incluido `admin`.
+
+---
+
+## Notas de Versión (*Release Notes*)
+
+- **`v0.5.0` (5–7 nov 2026):** Módulo de calificaciones por cortes (`/api/grades`, `/api/subjects/:id/grades`), proyección de nota necesaria para aprobar (`/api/subjects/:id/progress`), eliminación en cascada de materias (`DELETE /api/subjects/:id`) y documentación formal en LaTeX en `docs/` (manual técnico, sistema de diseño UI/UX y términos y condiciones preliminares de 1 página).
+- **`v0.4.0` (4–5 nov 2026):** Módulo de materias (`POST/GET/PATCH /api/subjects`) y consulta de horario semanal (`GET /api/subjects/:subjectId/schedule`).
+- **`v0.3.0` (4 nov 2026):** Módulos de perfil universitario (`GET/PATCH /api/profile`) y preferencias de usuario (`GET/PATCH /api/settings`).
+- **`v0.2.0` (2 nov 2026):** Endpoint paginado de notificaciones (`GET /api/notifications`) con soporte para fuentes `MOODLE`, `CLASSROOM` y `SYSTEM`, y configuración de `.gitignore`.
+- **`v0.1.0` (31 oct 2026):** Fundación del monorepo (`backend/`, `mobile/`, `docs/`), servidor Express 5 + TypeScript, hashing `scrypt`, `GET /api/health` y módulo completo de autenticación `/api/auth` (Taller 3).

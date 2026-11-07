@@ -1,0 +1,67 @@
+\documentclass[10pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noshorthands]{babel}
+\usepackage{lmodern}
+\usepackage[top=1.5cm,bottom=1.5cm,left=1.8cm,right=1.8cm]{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{notiuCrimson}{HTML}{AA0330}
+\definecolor{notiuDark}{HTML}{260A13}
+\definecolor{notiuWarmBg}{HTML}{F9F5F3}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3.5pt}
+
+\begin{document}
+
+% Encabezado compacto
+\noindent
+\colorbox{notiuDark}{%
+  \parbox{\dimexpr\textwidth-2\fboxsep\relax}{%
+    \vspace{4pt}
+    {\Large\bfseries\textcolor{white}{NOTIU --- Términos y Condiciones de Uso (Versión Preliminar)}}\\[2pt]
+    {\footnotesize\textcolor{white}{Versión 0.5.0 \textbar\ Vigencia: Noviembre de 2026 \textbar\ Proyecto Académico --- Construcción de Software}}
+    \vspace{4pt}
+  }%
+}
+
+\vspace{4pt}
+{\small
+El presente documento establece las condiciones básicas de uso de \textbf{NotiU}, aplicación multiplataforma de organización académica y gestión de notificaciones estudiantiles. Al registrarse o utilizar el servicio en cualquiera de sus entornos de prueba, el usuario acepta los siguientes términos:}
+
+\vspace{2pt}
+\begin{enumerate}[leftmargin=1.4em, itemsep=3.5pt, topsep=2pt, parsep=0pt, label=\textbf{\textcolor{notiuCrimson}{\arabic*.}}]
+
+  \item \textbf{Naturaleza Académica y Objeto del Servicio.}
+  NotiU es un proyecto de software en fase de prototipo desarrollado con fines estrictamente formativos en la asignatura \emph{Construcción de Software}. Su propósito es facilitar a los estudiantes universitarios la consulta centralizada de avisos académicos, el seguimiento de materias, horarios, apuntes, recordatorios y la proyección orientativa de calificaciones.
+
+  \item \textbf{Registro de Cuenta y Uso Aceptable.}
+  Para acceder a las funcionalidades personalizadas, el usuario debe registrarse proporcionando información veraz (nombre, correo electrónico y contraseña de mínimo 8 caracteres). El usuario es responsable de resguardar sus credenciales y tokens de sesión, comprometiéndose a emplear la plataforma únicamente con fines personales, educativos y lícitos, absteniéndose de vulnerar cuentas de terceros, alterar la API o automatizar peticiones abusivas.
+
+  \item \textbf{Fase de Prototipo y Almacenamiento Temporal.}
+  En su versión actual (\texttt{v0.5.0}), el backend opera como entorno demostrativo con persistencia temporal en memoria (\emph{in-memory}). En consecuencia, las cuentas, materias, notas y configuraciones registradas pueden restablecerse cuando el servidor se reinicie o actualice. El servicio se ofrece ``tal cual'' (\emph{as is}), sin garantías de disponibilidad continua ni respaldo permanente de información durante esta etapa experimental.
+
+  \item \textbf{Privacidad y Tratamiento Básico de Datos.}
+  NotiU recolecta únicamente los datos necesarios para su funcionamiento académico: identificación básica, perfil universitario (institución, carrera, semestre, intereses), asignaturas, calificaciones y preferencias de alertas o visualización. Las contraseñas se almacenan protegidas mediante funciones criptográficas de derivación (\texttt{scrypt}) y nunca en texto plano. Siguiendo los principios de la Ley 1581 de 2012 (Colombia), los datos no se comercializan ni se ceden a terceros; el usuario puede restringir la visibilidad de su perfil ante otros estudiantes desde los ajustes de privacidad o solicitar la eliminación de sus datos.
+
+  \item \textbf{Alcance Informativo e Integraciones Externas.}
+  Los cálculos de promedios ponderados por cortes, estimaciones de nota mínima necesaria para aprobar, temporizadores de estudio y notificaciones vinculadas con plataformas externas (tales como Moodle, Google Classroom, Microsoft Teams o correo electrónico) constituyen herramientas de apoyo personal. Dichos resultados tienen carácter meramente orientativo y no sustituyen las calificaciones, fechas límite ni certificaciones oficiales emitidas por cada institución educativa.
+
+  \item \textbf{Propiedad Intelectual.}
+  El código fuente, la arquitectura del sistema, la interfaz de usuario, la denominación \textbf{NotiU} y el isotipo del zorro con punta de estilógrafo son titularidad de su equipo desarrollador (\emph{Alejandro Rodríguez, Alejandro Martínez, David Muñoz, Yorman Sanabria y Jireth Suárez}), sin perjuicio de las bibliotecas y herramientas de código abierto empleadas bajo sus respectivas licencias.
+
+  \item \textbf{Modificaciones y Contacto.}
+  Estos términos preliminares podrán ajustarse conforme el proyecto incorpore base de datos persistente, autenticación con proveedores externos y despliegue móvil en producción. Cualquier consulta, reporte técnico o solicitud relacionada con el proyecto puede canalizarse a través del repositorio oficial: \url{https://github.com/Manum03/NotiU}.
+
+\end{enumerate}
+
+\vfill
+\noindent\textcolor{notiuCrimson}{\rule{\textwidth}{0.6pt}}\\[2pt]
+{\scriptsize\textcolor{gray}{NotiU (\texttt{v0.5.0}) --- Curso de Construcción de Software, Docente: Diego Andrés Baquero Tibocha. Documento preliminar de una (1) página para validación funcional y académica.}}
+
+\end{document}
