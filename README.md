@@ -19,28 +19,23 @@
 NotiU/
 ├── backend/                          API REST en Node.js + Express 5 + TypeScript
 ├── mobile/                           Arquitectura base de la aplicación móvil
-└── docs/                             Documentación formal en LaTeX
-    ├── documentacion_notiu.tex       Manual técnico, guía UI/UX y notas de versión
-    └── terminos_y_condiciones.tex    Términos y condiciones básicos (1 página)
+└── docs/                             Documentación oficial (PDFs listos + fuentes LaTeX)
+    ├── documentacion_notiu.pdf       Manual técnico, guía UI/UX y notas de versión (PDF)
+    ├── terminos_y_condiciones.pdf    Términos y condiciones básicos en 1 página (PDF)
+    ├── documentacion_notiu.tex       Código fuente en LaTeX de la documentación general
+    └── terminos_y_condiciones.tex    Código fuente en LaTeX de los términos y condiciones
 ```
 
 ---
 
-## Documentación en LaTeX (`docs/`)
+## Documentación del proyecto (`docs/`)
 
-Toda la especificación formal del proyecto está redactada en **LaTeX** dentro de la carpeta `docs/`:
+Los documentos ya están compilados e integrados en el repositorio para abrirse y consultarse directamente desde GitHub sin instalar herramientas locales:
 
-- **`docs/documentacion_notiu.tex`**: Documentación unificada con propósito e identidad de marca (simbolismo del zorro y el estilógrafo), hoja de estilos UI/UX (tipografías *Bebas Neue* y *Playfair Display*, paleta oficial de 17 colores HEX), módulos móviles, catálogo de API y notas de versión (`v0.1.0` – `v0.5.0`).
-- **`docs/terminos_y_condiciones.tex`**: Versión básica preliminar de **máximo una (1) página** con los términos y condiciones necesarios para la etapa actual de prototipo.
+- 📄 **[Documentación Técnica, Sistema UI/UX y Notas de Versión (`PDF`)](docs/documentacion_notiu.pdf)** *(fuente: [`documentacion_notiu.tex`](docs/documentacion_notiu.tex))* — Incluye propósito e identidad de marca (simbolismo del zorro y el estilógrafo), hoja de estilos UI/UX (tipografías *Bebas Neue* y *Playfair Display*, paleta oficial de 17 colores HEX), módulos móviles, catálogo de API y notas de versión (`v0.1.0` – `v0.5.0`).
+- 📄 **[Términos y Condiciones de Uso — Versión Básica de 1 Página (`PDF`)](docs/terminos_y_condiciones.pdf)** *(fuente: [`terminos_y_condiciones.tex`](docs/terminos_y_condiciones.tex))* — Condiciones preliminares esenciales ajustadas a una sola página para la fase actual del prototipo.
 
-Para compilarlos a PDF localmente (TeX Live / MiKTeX) o en **Overleaf**:
-
-```bash
-cd docs
-pdflatex documentacion_notiu.tex
-pdflatex documentacion_notiu.tex   # segunda pasada para actualizar el índice
-pdflatex terminos_y_condiciones.tex
-```
+> Si necesitas editar y recompilar los archivos `.tex` en línea sin instalar nada en tu equipo, también puedes abrirlos directamente en Overleaf: [Editar `documentacion_notiu.tex` en Overleaf](https://www.overleaf.com/docs?snip_uri=https://raw.githubusercontent.com/Manum03/NotiU/AlejandroR/docs/documentacion_notiu.tex) | [Editar `terminos_y_condiciones.tex` en Overleaf](https://www.overleaf.com/docs?snip_uri=https://raw.githubusercontent.com/Manum03/NotiU/AlejandroR/docs/terminos_y_condiciones.tex).
 
 ---
 
