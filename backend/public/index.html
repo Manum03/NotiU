@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NotiU – Borrador de la app</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#10060A; --c3:#260A13; --c2:#4E021A; --c1:#800427; --acc:#AA0330; --field:#2B1115;
+          --tx:#E9DDD3; --tx2:#D8BFBC; --mute:#9C484F; --hi:#EE6520; --hib:#53230C; --lo:#20EEDB; --lob:#0C533E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#555; color:var(--tx); font:15px/1.45 "Playfair Display",Georgia,serif; }
+  h1,h2,h3,button,summary,.num { font-family:"Bebas Neue",Impact,"Arial Narrow",sans-serif; font-weight:400; letter-spacing:.03em; }
+  #phone { max-width:420px; height:100vh; height:100dvh; margin:0 auto; display:flex; flex-direction:column; overflow:hidden;
+           background:radial-gradient(ellipse at 50% 105%, rgba(170,3,48,.38), transparent 62%), var(--bg); }
+  @media (min-width:480px) { #phone { height:min(900px, calc(100vh - 32px)); margin:16px auto; border-radius:26px; } }
+  #app { flex:1; min-height:0; overflow-y:auto; padding:22px 16px 20px; scrollbar-width:thin; scrollbar-color:var(--acc) transparent; }
+  #app::-webkit-scrollbar { width:6px; } #app::-webkit-scrollbar-thumb { background:var(--acc); border-radius:3px; }
+  h1 { margin:0; font-size:2rem; line-height:1.05; } h2 { margin:22px 0 8px; font-size:1.35rem; } h3 { margin:0; font-size:1.3rem; }
+  p { margin:4px 0; } .sub, small { color:var(--tx2); } small { font-size:.8rem; } .c { text-align:center; }
+  .pt { padding-left:10px; border-left:3px solid var(--acc); } .pt span, .logo span { color:var(--acc); }
+  .logo { font-size:4.6rem; text-align:center; margin:30px 0 0; } .logo.s { font-size:3.4rem; margin:6px 0 10px; }
+  label { display:block; font-size:.82rem; margin:12px 0 5px; }
+  input, select { width:100%; padding:12px 14px; color:var(--tx); font:inherit; border:1px solid var(--c1); border-radius:14px;
+                  background:linear-gradient(90deg,var(--field),var(--c2)); }
+  input::placeholder { color:var(--mute); } input[type=checkbox] { width:auto; margin-right:8px; }
+  .check { display:flex; align-items:center; margin:10px 0; font-size:.95rem; }
+  .btn { display:block; width:100%; margin-top:14px; padding:12px; border:0; border-radius:14px; cursor:pointer; color:var(--tx); font-size:1.25rem;
+         background:linear-gradient(90deg,var(--acc),var(--c1) 70%,var(--c3)); }
+  .btn.out { background:transparent; border:2px solid var(--acc); }
+  .link { background:none; border:0; color:var(--acc); cursor:pointer; font:inherit; font-weight:600; padding:0; }
+  button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline:2px solid var(--tx); outline-offset:2px; }
+  .card { background:linear-gradient(160deg,var(--c3),#18060d); border:1px solid var(--c2); border-radius:16px; padding:14px; margin:10px 0; }
+  .card[data-act] { cursor:pointer; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .two, .three { display:grid; gap:10px; margin-top:14px; } .two { grid-template-columns:1fr 1fr; } .three { grid-template-columns:repeat(3,1fr); }
+  .stat { margin:0; padding:10px; text-align:center; } .num { display:block; font-size:2rem; line-height:1.1; } .stat small { display:block; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+  .chip { padding:5px 12px; border-radius:20px; border:1px solid var(--c1); background:transparent; color:var(--tx2); font-size:1rem; cursor:pointer; }
+  .chip.on { background:var(--acc); border-color:var(--acc); color:var(--tx); } .chip[disabled], .round[disabled] { opacity:.5; cursor:default; }
+  .pill { padding:2px 10px; border-radius:20px; font-size:.85rem; white-space:nowrap; }
+  .pill.on { background:var(--acc); } .pill.pen { background:#6b3a40; } .pill.fin { background:#5d5456; }
+  .tag { font-size:.72rem; padding:1px 8px; border-radius:10px; font-family:Georgia,serif; }
+  .urg { background:var(--hib); color:var(--hi); } .inf { background:var(--lob); color:var(--lo); }
+  .bar { height:8px; background:var(--field); border-radius:4px; overflow:hidden; margin:8px 0 4px; } .bar i { display:block; height:100%; background:var(--acc); }
+  .low { color:var(--hi); } .okc { color:var(--lo); }
+  .hd { display:flex; justify-content:space-between; gap:10px; } .hd h1 { font-size:2.2rem; }
+  .round { position:relative; width:42px; height:42px; flex:none; margin-left:6px; border-radius:50%; border:1px solid var(--c1); background:var(--c3); color:var(--tx); font-size:1.1rem; cursor:pointer; }
+  #badge { position:absolute; top:-3px; right:-3px; min-width:16px; padding:0 4px; border-radius:8px; background:var(--acc); font:normal .7rem/16px sans-serif; }
+  .avatar { width:62px; height:62px; flex:none; border-radius:50%; background:var(--c2); display:grid; place-items:center; font:2rem "Bebas Neue",Impact,sans-serif; }
+  .or { display:flex; align-items:center; gap:12px; margin:22px 0 14px; color:var(--acc); } .or::before, .or::after { content:""; flex:1; height:1px; background:var(--c1); }
+  .social { display:flex; justify-content:center; gap:22px; } .social .round { margin:0; }
+  .list { padding:0; } .list > * { border-bottom:1px solid var(--c2); } .list > *:last-child { border:0; }
+  summary { display:flex; flex-direction:column; padding:12px 14px; cursor:pointer; font-size:1.2rem; list-style:none; } summary::-webkit-details-marker { display:none; }
+  summary small { font-family:"Playfair Display",Georgia,serif; letter-spacing:0; } details > .in { padding:0 14px 14px; }
+  .rowbtn { display:block; width:100%; padding:12px 14px; text-align:left; background:none; border:0; color:var(--acc); font-size:1.2rem; cursor:pointer; }
+  #tabs { flex:none; display:flex; margin:0 12px 12px; padding:6px; border-radius:30px; background:linear-gradient(var(--c2),#3a0114); }
+  #tabs button { flex:1; padding:9px 0; border:0; border-radius:24px; background:none; color:var(--tx2); font-size:1rem; cursor:pointer; }
+  #tabs button.on { background:var(--acc); color:var(--tx); }
+  #toast { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); width:calc(100% - 32px); max-width:380px; padding:10px 14px; border-radius:12px;
+           background:var(--c2); font-size:.9rem; display:none; z-index:9; } #toast.show { display:block; } #toast.bad { border-left:4px solid var(--hi); }
+  .dot { display:inline-block; width:9px; height:9px; margin-right:6px; border-radius:50%; background:var(--mute); } .dot.up { background:var(--lo); }
+  pre { background:var(--c3); padding:10px; border-radius:10px; font-size:.75rem; overflow:auto; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<div id="phone"><div id="app"></div><nav id="tabs"></nav></div>
+<div id="toast"></div>
+
+<script>
+(() => {
+/* ---------- Utilidades ---------- */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const num = (v) => (v === "" || v == null ? undefined : Number(v));
+const fmt = (d) => { if (!d) return ""; const t = d.length === 10 ? new Date(d + "T00:00:00") : new Date(d);
+  return t.toLocaleDateString("es-CO", { day:"numeric", month:"short" }); };
+const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+                set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} } };
+const S = { token:store.get("token"), base:store.get("base") || (location.protocol.startsWith("http") ? location.origin : "http://localhost:3000"), user:null, screen:"welcome",
+            tab:"inicio", subjectId:null, status:"", search:"", cat:"", log:[] };
+const ST = { cursando:["EN CURSO", "on"], pendiente:["PENDIENTE", "pen"], aprobada:["FINALIZADA", "fin"] };
+const head = (a, b, sub) => `<h1 class="pt">${a} <span>${b}</span></h1><p class="sub" style="margin-top:6px">${sub}</p>`;
+
+let toastTimer;
+function toast(msg, bad) {
+  const t = $("#toast"); t.textContent = msg; t.className = "show" + (bad ? " bad" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.className = ""), 3800);
+}
+const why = (r) => (r.data?.details?.length ? r.data.details.join(". ") : r.data?.error || "Error " + r.status);
+const fail = (r) => { if (r.status !== 0) toast(why(r), true); };
+
+/* ---------- Única función que habla con el backend ---------- */
+async function api(method, path, body, auth = true) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (auth && S.token) headers.Authorization = "Bearer " + S.token;
+  let res, data = null;
+  try {
+    res = await fetch(S.base.replace(/\/$/, "") + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    data = await res.json().catch(() => null);
+  } catch {
+    addLog("×", method, path); toast("No hay conexión con el servidor. ¿Está encendido? ¿Tiene CORS?", true);
+    return { ok:false, status:0, data:null };
+  }
+  addLog(res.status, method, path);
+  // Solo es "sesión vencida" si el error habla del token (una contraseña incorrecta también da 401)
+  if (res.status === 401 && auth && S.token && /token|sesi[oó]n|authorization/i.test(data?.error || "")) {
+    endSession(); toast("Tu sesión terminó. Inicia sesión de nuevo.", true);
+  }
+  return { ok:res.ok, status:res.status, data };
+}
+function addLog(status, method, path) {
+  S.log.unshift(`${status}  ${method} ${path}`); S.log.length = Math.min(S.log.length, 25);
+  const el = $("#log"); if (el) el.textContent = S.log.join("\n");
+}
+function endSession() { S.token = ""; S.user = null; S.screen = "welcome"; store.set("token", ""); render(); }
+function start(d) { S.token = d.token; S.user = d.user; store.set("token", d.token); S.tab = "inicio"; S.subjectId = null; render(); }
+
+/* ---------- Navegación ---------- */
+async function render() {
+  if (!S.token) { $("#tabs").innerHTML = ""; return { welcome:viewWelcome, login:viewLogin, register:viewRegister }[S.screen](); }
+  if (!S.user) { const r = await api("GET", "/api/auth/me"); if (!r.ok) return; S.user = r.data; }
+  $("#tabs").innerHTML = [["espacio", "ESPACIO"], ["notas", "NOTAS"], ["inicio", "INICIO"], ["materias", "MATERIAS"], ["perfil", "PERFIL"]]
+    .map(([v, l]) => `<button data-act="tab" data-v="${v}" class="${S.tab === v ? "on" : ""}">${l}</button>`).join("");
+  if (S.tab === "inicio") viewHome();
+  else if (S.tab === "materias") S.subjectId ? viewSubject() : viewSubjects();
+  else if (S.tab === "perfil") viewProfile();
+  else if (S.tab === "notas") viewSoon("MIS", "RECORDATORIOS", "Tus ideas y pendientes importantes, siempre a mano.", "Apuntes y recordatorios (endpoints #25 al #28 del inventario).");
+  else viewSoon("MI", "ESPACIO", "Organiza tus sesiones y encuentra tu ritmo.", "Tips y plan de estudio (endpoints #39 al #43 del inventario).");
+}
+function viewSoon(a, b, sub, what) {
+  $("#app").innerHTML = head(a, b, sub) + `<div class="card c" style="margin-top:20px"><h3>PRÓXIMAMENTE</h3><p class="sub">Aún no hay backend para esta pantalla.<br>${what}</p></div>`;
+}
+
+/* ---------- Bienvenida / Iniciar sesión / Crear cuenta ---------- */
+function viewWelcome() {
+  $("#app").innerHTML = `
+    <h1 class="logo">NOTI<span>U</span></h1>
+    <h2 class="c" style="margin-top:6px">¡BIENVENIDO A NOTIU!</h2>
+    <p class="sub c">Organiza tus tareas, recuerda tus fechas importantes y mantén tus objetivos siempre en mente.</p>
+    <button class="btn" data-act="go" data-v="login" style="margin-top:26px">INICIAR SESIÓN →</button>
+    <button class="btn out" data-act="go" data-v="register">CREAR CUENTA</button>
+    <div class="or">O</div>
+    <div class="social"><button class="round" disabled title="Próximamente">G</button><button class="round" disabled title="Próximamente">A</button><button class="round" disabled title="Próximamente">✉</button></div>
+    <p class="sub c" style="margin-top:26px"><span id="dot" class="dot"></span><span id="health">Comprobando servidor…</span></p>
+    <label>Dirección del servidor</label><input id="base" value="${esc(S.base)}">`;
+  api("GET", "/api/health", undefined, false).then((r) => {
+    if (!$("#dot")) return;
+    $("#dot").className = "dot" + (r.ok ? " up" : ""); $("#health").textContent = r.ok ? "Servidor conectado" : "Servidor sin respuesta";
+  });
+}
+function viewLogin() {
+  $("#app").innerHTML = `<button class="link" data-act="go" data-v="welcome">← Volver</button>
+    <h1 class="logo s">NOTI<span>U</span></h1><h2>INICIAR SESIÓN</h2><p class="sub">Entra con tu cuenta para continuar.</p>
+    <form data-form="login">
+      <label>Correo electrónico</label><input name="email" value="admin@notiu.com" autocomplete="username">
+      <label>Contraseña</label><input name="password" type="password" value="admin1234" autocomplete="current-password">
+      <button class="btn">ENTRAR</button></form>
+    <p class="sub c" style="margin-top:16px">¿No tienes cuenta? <button class="link" data-act="go" data-v="register">Crea una</button></p>`;
+}
+function viewRegister() {
+  $("#app").innerHTML = `<button class="link" data-act="go" data-v="welcome">← Volver</button>
+    <h1 class="logo s">NOTI<span>U</span></h1><h2>CREAR CUENTA</h2><p class="sub">Completa tus datos para comenzar.</p>
+    <form data-form="register">
+      <label>Nombre completo</label><input name="name" placeholder="Ingresa tu nombre">
+      <label>Correo electrónico</label><input name="email" placeholder="Ejemplo@correo.com">
+      <label>Contraseña</label><input name="password" type="password" placeholder="Mínimo 8 caracteres">
+      <label>Confirmar contraseña</label><input name="confirm" type="password" placeholder="Repite tu contraseña">
+      <button class="btn">CREAR MI CUENTA</button></form>
+    <p class="sub c" style="margin-top:16px">¿Ya tienes una cuenta? <button class="link" data-act="go" data-v="login">Inicia sesión</button></p>`;
+}
+
+/* ---------- Pantalla de inicio ---------- */
+async function viewHome() {
+  const day = new Date().toLocaleDateString("es-CO", { weekday:"long", day:"2-digit", month:"long" }).toUpperCase();
+  $("#app").innerHTML = `<div class="hd"><div><small>${day}</small><h1>¡HOLA, ${esc(S.user.name.split(" ")[0].toUpperCase())}!</h1>
+      <p class="sub">Un pequeño paso te acerca cada vez más a tus metas.</p></div>
+      <div style="display:flex"><button class="round" data-act="bell" title="Ver avisos">🔔<i id="badge" hidden></i></button>
+      <button class="round" data-act="tab" data-v="perfil" title="Mi perfil">${esc(S.user.name[0].toUpperCase())}</button></div></div>
+    <div id="home" class="sub" style="margin-top:16px">Cargando…</div>`;
+  const q = "/api/notifications?limit=10" + (S.cat ? "&category=" + S.cat : "");
+  const [s, n, g] = await Promise.all([api("GET", "/api/subjects"), api("GET", q), api("GET", "/api/grades")]);
+  if (S.tab !== "inicio" || !$("#home")) return;
+  const notis = n.ok ? n.data.data : [], grades = g.ok ? g.data.data : [], unread = n.ok ? n.data.meta.unreadCount : 0;
+  if (unread) { $("#badge").hidden = false; $("#badge").textContent = unread; }
+  $("#home").outerHTML = `
+    <div class="two"><div class="card stat"><b class="num">${s.ok ? s.data.total : "–"}</b><small>materias registradas</small></div>
+      <div class="card stat"><b class="num">${n.ok ? unread : "–"}</b><small>avisos sin leer</small></div></div>
+    <h2 id="avisos">AVISOS</h2>
+    <div class="chips">${[["", "Todos"], ["URGENT", "Urgentes"], ["INFORMATIVE", "Informativos"]]
+      .map(([v, l]) => `<button class="chip ${S.cat === v ? "on" : ""}" data-act="cat" data-v="${v}">${l}</button>`).join("")}</div>
+    ${notis.length ? notis.map((x) => `<div class="card"><div class="top"><h3>${esc(x.title)}</h3>
+        <span class="tag ${x.category === "URGENT" ? "urg" : "inf"}">${x.category === "URGENT" ? "Urgente" : "Informativo"}</span></div>
+        <p>${esc(x.body)}</p><small>${x.source} · ${fmt(x.sourcePublishedAt || x.createdAt)}${x.isRead ? "" : " · sin leer"}</small></div>`).join("")
+      : `<p class="sub">${n.ok ? "No tienes avisos." : "No se pudieron cargar los avisos."}</p>`}
+    <h2>ÚLTIMAS NOTAS</h2>
+    ${grades.length ? grades.slice(0, 5).map((x) => `<div class="card"><div class="top"><h3>${esc(x.subjectName)}</h3>
+        <b class="num ${x.score < 3 ? "low" : "okc"}">${x.score.toFixed(1)}</b></div>
+        <small>${esc(x.title)} · ${x.weight}%${x.corte ? " · corte " + x.corte : ""} · ${fmt(x.date)}</small></div>`).join("")
+      : `<p class="sub">Aún no hay notas. Regístralas dentro de una materia.</p>`}
+    <h2>CONEXIONES</h2>
+    <div class="card"><p class="sub">¡Elige con qué plataforma quieres conectarte!</p>
+      <div class="two">${["Correo", "Classroom", "Universidad", "Teams"].map((c) => `<span class="sub">○ ${c} <small>(pronto)</small></span>`).join("")}</div></div>`;
+}
+
+/* ---------- Materias (lista) ---------- */
+function viewSubjects() {
+  $("#app").innerHTML = head("MIS", "MATERIAS", "Organiza, da seguimiento y cumple tus metas.") + `
+    <input id="search" placeholder="Buscar materia..." value="${esc(S.search)}" style="margin-top:14px">
+    <div class="chips">${[["", "TODAS"], ["cursando", "EN CURSO"], ["pendiente", "PENDIENTE"], ["aprobada", "FINALIZADAS"]]
+      .map(([v, l]) => `<button class="chip ${S.status === v ? "on" : ""}" data-act="status" data-v="${v}">${l}</button>`).join("")}</div>
+    <div class="three" id="stats"></div>
+    <div class="top" style="margin-top:20px"><h2 style="margin:0">TUS MATERIAS</h2><button class="chip on" data-act="toggleNew">+ AÑADIR MATERIA</button></div>
+    <form data-form="newSubject" id="newForm" class="card" hidden>
+      <label>Nombre</label><input name="name"><label>Código</label><input name="code">
+      <div class="two" style="margin:0"><div><label>Créditos (1-10)</label><input name="credits" type="number" min="1" max="10" value="3"></div>
+        <div><label>Semestre (1-12)</label><input name="semester" type="number" min="1" max="12" value="1"></div></div>
+      <label>Docente (opcional)</label><input name="teacher">
+      <label>Horario (opcional)</label>
+      <select name="day"><option value="">Sin horario</option>${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((d) => `<option>${d}</option>`).join("")}</select>
+      <div class="two" style="margin-top:8px"><input name="start" type="time" value="08:00"><input name="end" type="time" value="10:00"></div>
+      <label>Salón</label><input name="room"><button class="btn">GUARDAR MATERIA</button></form>
+    <div id="list" class="sub" style="margin-top:12px">Cargando…</div>`;
+  loadStats(); loadSubjects();
+}
+async function loadStats() {
+  const [all, g] = await Promise.all([api("GET", "/api/subjects"), api("GET", "/api/grades")]);
+  const box = $("#stats"); if (!box || !all.ok) return;
+  const avgs = all.data.data.map((s) => s.currentAverage).filter((a) => a > 0);
+  const mean = avgs.length ? (avgs.reduce((a, b) => a + b, 0) / avgs.length).toFixed(2) : "–";
+  box.innerHTML = [[all.data.total, "MATERIAS"], [g.ok ? g.data.data.length : "–", "NOTAS"], [mean, "PROMEDIO"]]
+    .map(([v, l]) => `<div class="card stat"><b class="num">${v}</b><small>${l}</small></div>`).join("");
+}
+async function loadSubjects() {
+  const p = new URLSearchParams(); if (S.status) p.set("status", S.status); if (S.search) p.set("search", S.search);
+  const qs = p.toString(), r = await api("GET", "/api/subjects" + (qs ? "?" + qs : ""));
+  const box = $("#list"); if (!box) return;
+  if (!r.ok) { box.textContent = "No se pudieron cargar las materias."; return fail(r); }
+  box.className = "";
+  box.innerHTML = r.data.data.length ? r.data.data.map((s) => { const [lbl, cls] = ST[s.status] || [s.status, "pen"], avg = s.currentAverage || 0;
+    return `<div class="card" data-act="open" data-id="${s.id}">
+      <div class="top"><h3>${esc(s.name)}</h3><span class="pill ${cls}">${lbl}</span></div>
+      <small>${esc(s.code)} · ${s.credits} créditos · semestre ${s.semester}${s.teacher ? " · " + esc(s.teacher) : ""}</small>
+      <div class="bar"><i style="width:${(avg / 5) * 100}%"></i></div><small>Promedio ${avg ? avg.toFixed(2) : "sin notas"}</small></div>`; }).join("")
+    : `<p class="sub">No hay materias${S.status || S.search ? " con ese filtro" : " todavía. Añade la primera"}.</p>`;
+}
+
+/* ---------- Materia (detalle) ---------- */
+const PROGRESS = {
+  en_curso: (p) => `Necesitas ${p.neededToPass} en el ${p.remainingPercentage}% restante para aprobar.`,
+  aprobacion_asegurada: () => "Aprobación asegurada: ya alcanzaste la nota mínima.",
+  imposible_aprobar: () => "Aprobar ya no es posible: necesitarías más de 5.0.",
+  aprobada: () => "Materia aprobada.", reprobada: () => "Materia reprobada.",
+};
+async function viewSubject() {
+  const id = S.subjectId; $("#app").innerHTML = `<p class="sub">Cargando…</p>`;
+  const base = "/api/subjects/" + id;
+  const [d, sc, g, pr] = await Promise.all([api("GET", base), api("GET", base + "/schedule"), api("GET", base + "/grades"), api("GET", base + "/progress")]);
+  if (S.subjectId !== id) return;
+  if (!d.ok) { fail(d); S.subjectId = null; return viewSubjects(); }
+  const s = d.data, p = pr.data, gr = g.ok ? g.data : null, [lbl, cls] = ST[s.status] || [s.status, "pen"];
+  $("#app").innerHTML = `
+    <button class="link" data-act="back">← Mis materias</button>
+    <div class="top" style="margin-top:10px"><h1>${esc(s.name)}</h1><span class="pill ${cls}">${lbl}</span></div>
+    <p class="sub">${esc(s.code)} · ${s.credits} créditos · semestre ${s.semester} · ${s.teacher ? esc(s.teacher) : "Sin docente"}</p>
+    <h2>AVANCE</h2>
+    ${pr.ok ? `<div class="card"><div class="top"><span>Evaluado ${p.evaluatedPercentage}%</span><b class="num ${p.currentAverage && p.currentAverage < 3 ? "low" : "okc"}">${p.currentAverage.toFixed(2)}</b></div>
+      <div class="bar"><i style="width:${p.evaluatedPercentage}%"></i></div><small>${PROGRESS[p.status](p)}</small></div>` : `<p class="sub">Sin datos de avance.</p>`}
+    <h2>HORARIO</h2>
+    ${sc.ok && sc.data.sessions.length ? sc.data.sessions.map((x) => `<div class="card"><h3>${x.day}</h3><small>${x.startTime} – ${x.endTime}${x.room ? " · salón " + esc(x.room) : ""}</small></div>`).join("") : `<p class="sub">Sin horario registrado.</p>`}
+    <h2>NOTAS</h2>
+    ${gr && gr.grades.length ? gr.grades.map((x) => `<div class="card"><div class="top"><h3>${esc(x.title)}</h3><b class="num ${x.score < 3 ? "low" : "okc"}">${x.score.toFixed(1)}</b></div>
+      <small>${x.weight}%${x.corte ? " · corte " + x.corte : ""} · ${fmt(x.date)}</small></div>`).join("")
+      + `<p class="sub">Peso total ${gr.totalWeight}% · promedio ponderado ${gr.weightedAverage.toFixed(2)}</p>` : `<p class="sub">Aún no hay notas.</p>`}
+    <details class="card list" open><summary>AGREGAR NOTA<small>Evaluación con nota y porcentaje</small></summary><form data-form="newGrade" class="in">
+      <label>Nombre de la evaluación</label><input name="title" value="Parcial 1">
+      <div class="two" style="margin:0"><div><label>Nota (0.0 – 5.0)</label><input name="score" type="number" step="0.01" min="0" max="5"></div>
+        <div><label>Porcentaje (1 – 100)</label><input name="weight" type="number" step="0.01" min="1" max="100"></div></div>
+      <div class="two" style="margin:0"><div><label>Corte</label><select name="corte"><option value="">Sin corte</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+        <div><label>Fecha</label><input name="date" type="date"></div></div>
+      <button class="btn">GUARDAR NOTA</button></form></details>
+    <details class="card list"><summary>EDITAR MATERIA<small>Nombre y docente</small></summary><form data-form="editSubject" class="in">
+      <label>Nombre</label><input name="name" value="${esc(s.name)}"><label>Docente</label><input name="teacher" value="${esc(s.teacher)}">
+      <button class="btn">ACTUALIZAR</button></form></details>
+    <button class="btn out" data-act="del">ELIMINAR MATERIA</button>`;
+}
+
+/* ---------- Perfil ---------- */
+async function viewProfile() {
+  $("#app").innerHTML = `<p class="sub">Cargando…</p>`;
+  const [p, st] = await Promise.all([api("GET", "/api/profile"), api("GET", "/api/settings")]);
+  if (S.tab !== "perfil") return;
+  if (!p.ok || !st.ok) { $("#app").innerHTML = `<p class="sub">No se pudo cargar el perfil.</p>`; return fail(p.ok ? st : p); }
+  const pf = p.data, se = st.data, u = S.user;
+  const row = (t, sub, inner) => `<details><summary>${t}<small>${sub}</small></summary><div class="in">${inner}</div></details>`;
+  const chk = (n, l, on) => `<label class="check"><input type="checkbox" name="${n}" ${on ? "checked" : ""}>${l}</label>`;
+  $("#app").innerHTML = head("MI", "PERFIL", "Administra tu cuenta y tus preferencias.") + `
+    <div class="card" style="margin-top:16px"><div style="display:flex;gap:14px;align-items:center"><div class="avatar">${esc(u.name[0].toUpperCase())}</div>
+      <div><h2 style="margin:0">¡HOLA, ${esc(u.name.toUpperCase())}!</h2><small>${esc(u.email)}</small><br><span class="pill on">CUENTA ACTIVA</span> <small>${u.role}</small></div></div>
+      <div class="three"><div class="stat"><b class="num">${pf.stats.subjects}</b><small>Materias</small></div>
+        <div class="stat"><b class="num">${pf.semester}</b><small>Semestre</small></div><div class="stat"><b class="num">${pf.stats.connections}</b><small>Conexiones</small></div></div></div>
+    <h2>PREFERENCIAS</h2>
+    <div class="card list">
+      ${row("Información personal", "Nombre, correo y foto", `<form data-form="editName"><label>Nombre</label><input name="name" value="${esc(pf.name)}"><button class="btn">GUARDAR</button></form>`)}
+      ${row("Información académica", "Institución, carrera, semestre y jornada", `<form data-form="editAcademic">
+        <label>Carrera</label><input name="career" value="${esc(pf.career)}"><label>Semestre (1-12)</label><input name="semester" type="number" min="1" max="12" value="${pf.semester}">
+        <label>Sobre mí</label><input name="bio" value="${esc(pf.bio || "")}"><button class="btn">GUARDAR</button></form>`)}
+      ${row("Contraseña y seguridad", "Cambiar contraseña y administrar privacidad", `
+        <form data-form="password"><label>Contraseña actual</label><input name="currentPassword" type="password"><label>Nueva contraseña (mínimo 8)</label><input name="newPassword" type="password">
+          <button class="btn">CAMBIAR CONTRASEÑA</button></form>
+        <form data-form="privacy" style="margin-top:14px">${chk("peers", "Mostrar mi perfil a compañeros", se.privacy.showProfileToPeers)}<button class="btn out">GUARDAR PRIVACIDAD</button></form>`)}
+    </div>
+    <h2>CUENTA</h2>
+    <div class="card list">
+      ${row("Notificaciones", "Recordatorios, avisos y alertas de tareas", `<form data-form="notif">${chk("email", "Avisos por correo", se.notifications.email)}
+        ${chk("push", "Avisos push", se.notifications.push)}${chk("study", "Recordatorios de estudio", se.notifications.studyReminders)}<button class="btn">GUARDAR</button></form>`)}
+      ${row("Apariencia y tema", "Tema, apariencia y preferencias visuales", `<form data-form="theme"><label>Tema</label>
+        <select name="theme">${["light", "dark", "system"].map((t) => `<option ${se.theme === t ? "selected" : ""}>${t}</option>`).join("")}</select><button class="btn">GUARDAR</button></form>`)}
+      ${u.role === "admin" ? row("Usuarios", "Solo administrador", `<button class="btn out" data-act="users" style="margin-top:0">CARGAR USUARIOS</button><div id="users"></div>`) : ""}
+    </div>
+    <h2>AYUDA</h2>
+    <div class="card list">
+      ${row("Centro de ayuda", "Si algo no responde", `<p class="sub">Revisa que el servidor esté encendido y que la dirección (pantalla de bienvenida) sea correcta.</p>`)}
+      <button class="rowbtn" data-act="logout">CERRAR SESIÓN</button>
+    </div>
+    <details class="card"><summary>Llamadas a la API<small>Para verificar los endpoints</small></summary><pre id="log">${esc(S.log.join("\n"))}</pre></details>`;
+}
+
+/* ---------- Clics ---------- */
+const goTop = () => { $("#app").scrollTop = 0; };
+async function keep(fn) { const y = $("#app").scrollTop; await fn(); $("#app").scrollTop = y; }
+const acts = {
+  go(el) { goTop(); S.screen = el.dataset.v; render(); },
+  tab(el) { goTop(); S.tab = el.dataset.v; S.subjectId = null; render(); },
+  open(el) { goTop(); S.subjectId = el.dataset.id; render(); },
+  back() { goTop(); S.subjectId = null; render(); },
+  status(el) { S.status = el.dataset.v; viewSubjects(); },
+  cat(el) { S.cat = el.dataset.v; keep(viewHome); },
+  bell() { $("#avisos")?.scrollIntoView({ behavior:"smooth" }); },
+  toggleNew() { const f = $("#newForm"); f.hidden = !f.hidden; },
+  async del() {
+    if (!confirm("¿Eliminar esta materia y todas sus notas?")) return;
+    const r = await api("DELETE", "/api/subjects/" + S.subjectId);
+    if (r.ok) { toast(r.data?.message || "Materia eliminada"); S.subjectId = null; render(); } else fail(r);
+  },
+  async users() {
+    const r = await api("GET", "/api/auth/users"); if (!r.ok) return fail(r);
+    $("#users").innerHTML = r.data.map((u) => `<p><b>${esc(u.name)}</b><br><small>${esc(u.email)} · ${u.role}</small></p>`).join("");
+  },
+  async logout() { const r = await api("POST", "/api/auth/logout"); if (r.ok) toast(r.data.message); endSession(); },
+};
+document.addEventListener("click", (e) => { const el = e.target.closest("[data-act]"); if (el) acts[el.dataset.act]?.(el); });
+
+/* ---------- Formularios ---------- */
+const patchSettings = async (b) => { const r = await api("PATCH", "/api/settings", b); r.ok ? toast(r.data.message) : fail(r); };
+const forms = {
+  async login(f) { const r = await api("POST", "/api/auth/login", { email:f.email, password:f.password }, false); r.ok ? start(r.data) : fail(r); },
+  async register(f) {
+    if (f.password !== f.confirm) return toast("Las contraseñas no coinciden", true);
+    const r = await api("POST", "/api/auth/register", { name:f.name, email:f.email, password:f.password }, false);
+    if (r.ok) { toast("Cuenta creada"); start(r.data); } else fail(r);
+  },
+  async newSubject(f) {
+    const b = { name:f.name, code:f.code, credits:num(f.credits), semester:num(f.semester) };
+    if (f.teacher) b.teacher = f.teacher;
+    if (f.day) b.schedule = [{ day:f.day, startTime:f.start, endTime:f.end, ...(f.room ? { room:f.room } : {}) }];
+    const r = await api("POST", "/api/subjects", b); if (r.ok) { toast(r.data.message); viewSubjects(); } else fail(r);
+  },
+  async newGrade(f) {
+    const b = { title:f.title, score:num(f.score), weight:num(f.weight), corte:num(f.corte), date:f.date || undefined };
+    const r = await api("POST", `/api/subjects/${S.subjectId}/grades`, b); if (r.ok) { toast(r.data.message); keep(viewSubject); } else fail(r);
+  },
+  async editSubject(f) {
+    const r = await api("PATCH", "/api/subjects/" + S.subjectId, { name:f.name, teacher:f.teacher });
+    if (r.ok) { toast(r.data.message || "Materia actualizada"); keep(viewSubject); } else fail(r);
+  },
+  async editName(f) { const r = await api("PATCH", "/api/profile", { name:f.name }); if (r.ok) { toast(r.data.message); S.user.name = r.data.profile.name; viewProfile(); } else fail(r); },
+  async editAcademic(f) { const r = await api("PATCH", "/api/profile", { career:f.career, semester:num(f.semester), bio:f.bio }); if (r.ok) { toast(r.data.message); viewProfile(); } else fail(r); },
+  async password(f) {
+    const r = await api("PATCH", "/api/auth/password", { currentPassword:f.currentPassword, newPassword:f.newPassword });
+    if (r.ok) { toast(r.data.message); viewProfile(); } else fail(r);
+  },
+  privacy: (f) => patchSettings({ privacy:{ showProfileToPeers:f.peers === "on" } }),
+  notif: (f) => patchSettings({ notifications:{ email:f.email === "on", push:f.push === "on", studyReminders:f.study === "on" } }),
+  theme: (f) => patchSettings({ theme:f.theme }),
+};
+document.addEventListener("submit", (e) => { e.preventDefault(); forms[e.target.dataset.form]?.(Object.fromEntries(new FormData(e.target))); });
+
+/* ---------- Otros eventos ---------- */
+let searchTimer;
+document.addEventListener("input", (e) => {
+  if (e.target.id === "search") { clearTimeout(searchTimer); searchTimer = setTimeout(() => { S.search = e.target.value.trim(); loadSubjects(); }, 300); }
+});
+document.addEventListener("change", (e) => { if (e.target.id === "base") { S.base = e.target.value.trim(); store.set("base", S.base); } });
+
+render();
+})();
+</script>
+</body>
+</html>
