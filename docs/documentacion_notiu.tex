@@ -1,0 +1,315 @@
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla,es-noshorthands]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.2cm,headheight=14pt]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+
+% Paleta oficial de NotiU (Hoja de Estilos)
+\definecolor{carmesiVivido}{HTML}{AA0330}
+\definecolor{carmesiOscuroA}{HTML}{800427}
+\definecolor{carmesiOscuroB}{HTML}{4E021A}
+\definecolor{carmesiOscuroC}{HTML}{260A13}
+\definecolor{rojoOscuro}{HTML}{2B1115}
+\definecolor{rosaOscuro}{HTML}{10060A}
+\definecolor{rojoMedio}{HTML}{9C484F}
+\definecolor{naranjaClaro}{HTML}{E9DDD3}
+\definecolor{rojoPastel}{HTML}{D8BFBC}
+\definecolor{marronOscuro}{HTML}{53230C}
+\definecolor{naranjaPrio}{HTML}{EE6520}
+\definecolor{verdeOliva}{HTML}{52530C}
+\definecolor{amarilloPrio}{HTML}{EEE620}
+\definecolor{turquesaOscuro}{HTML}{0C533E}
+\definecolor{turquesaVivido}{HTML}{20EEDB}
+\definecolor{rosaNeonOscuro}{HTML}{4F0C53}
+\definecolor{lavandaVivido}{HTML}{BF20EE}
+\definecolor{grisSuave}{HTML}{F6F4F4}
+
+\newcommand{\swatch}[1]{\fcolorbox{black!35}{#1}{\rule{0pt}{6pt}\rule{14pt}{0pt}}}
+
+\titleformat{\section}
+  {\Large\bfseries\color{carmesiOscuroA}}{\thesection.}{0.5em}{}[\titlerule]
+\titleformat{\subsection}
+  {\large\bfseries\color{carmesiOscuroB}}{\thesubsection}{0.5em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textbf{NotiU} --- Documentación General y Notas de Versión}
+\fancyhead[R]{\small Construcción de Software (\texttt{v0.5.0})}
+\fancyfoot[C]{\small Página \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+
+\begin{document}
+
+% ==================== PORTADA / FICHA TÉCNICA ====================
+\begin{center}
+  \colorbox{carmesiOscuroC}{%
+    \parbox{\dimexpr\textwidth-2\fboxsep\relax}{%
+      \centering\vspace{10pt}
+      {\Huge\bfseries\textcolor{white}{NOTIU}}\\[4pt]
+      {\large\textcolor{naranjaClaro}{Asistente Académico y Centralizador de Notificaciones Universitarias}}\\[4pt]
+      {\small\textcolor{white}{Documentación Técnica, Sistema de Diseño UI/UX y Notas de Versión (\texttt{v0.1.0} -- \texttt{v0.5.0})}}
+      \vspace{10pt}
+    }%
+  }
+\end{center}
+
+\vspace{6pt}
+\begin{table}[h!]
+  \centering
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabularx}{\textwidth}{>{\bfseries\color{carmesiOscuroB}}l X}
+    \toprule
+    Proyecto & NotiU (Aplicación multiplataforma móvil + API REST) \\
+    Asignatura & Construcción de Software \\
+    Docente & Diego Andrés Baquero Tibocha \\
+    Integrantes & Alejandro Rodríguez, Alejandro Martínez, David Muñoz, Yorman Sanabria y Jireth Suárez \\
+    Versión documental & \texttt{v0.5.0} --- 7 de noviembre de 2026 \\
+    Repositorio GitHub & \url{https://github.com/Manum03/NotiU} \\
+    Colección Postman & \href{https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace\string~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share\&creator=59230493}{NotiU-Workspace (Colección compartida de pruebas API)} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\tableofcontents
+\newpage
+
+% ==================== SECCIÓN 1: IDENTIDAD Y PROPÓSITO ====================
+\section{Propósito e Identidad de Marca}
+
+\subsection{Propósito del Proyecto}
+\textbf{NotiU} nace con el propósito de acompañar a los estudiantes universitarios en su vida académica, ofreciendo un espacio unificado donde puedan centralizar notificaciones de actividades asignadas, organizar sus materias, controlar sus entregas pendientes y proyectar su rendimiento por cortes. Busca transformar la organización estudiantil en una experiencia sencilla, intuitiva y visualmente agradable.
+
+\subsection{Simbolismo del Isotipo: El Zorro y el Estilógrafo}
+La mascota e isotipo oficial de NotiU es un \textbf{zorro geométrico} cuyos rasgos sintetizan la filosofía del producto:
+\begin{itemize}[leftmargin=1.5em, itemsep=3pt]
+  \item \textbf{El zorro:} representa la inteligencia, la astucia y la capacidad de adaptación, cualidades esenciales para que el estudiante gestione mejor su tiempo y gane autonomía en su proceso formativo.
+  \item \textbf{La punta de estilógrafo:} el trazo central vertical del símbolo está inspirado en el plumín de un estilógrafo, evocando la escritura, la toma de apuntes, la creatividad y la construcción estructurada de ideas y conocimiento.
+\end{itemize}
+
+\subsection{Personalidad de Marca}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Inteligente:} transmite conocimiento, estrategia de estudio y creatividad.
+  \item \textbf{Organizada:} refleja orden, jerarquía visual clara y planificación oportuna.
+  \item \textbf{Cercana:} acompaña al estudiante con mensajes motivadores sin sobrecargar su flujo diario.
+  \item \textbf{Moderna:} emplea una interfaz oscura en tonos carmesí de alto contraste y lectura cómoda.
+  \item \textbf{Confiable:} actúa como apoyo constante para recordar fechas críticas y evaluar avances.
+\end{itemize}
+
+% ==================== SECCIÓN 2: SISTEMA DE DISEÑO UI/UX ====================
+\section{Sistema de Diseño Visual (UI/UX)}
+
+\subsection{Tipografías y Jerarquía de Texto}
+La identidad tipográfica combina una fuente condensada de alto impacto para encabezados y llamadas a la acción con una fuente serif editorial de alta legibilidad para textos descriptivos:
+
+\begin{table}[h!]
+  \centering
+  \renewcommand{\arraystretch}{1.2}
+  \rowcolors{2}{grisSuave}{white}
+  \begin{tabularx}{\textwidth}{l l X}
+    \toprule
+    \textbf{Elemento de la App} & \textbf{Tipografía} & \textbf{Rol en la Jerarquía Visual} \\
+    \midrule
+    Nombre de la App (\texttt{NOTIU}) & \textbf{Bebas Neue} & Título principal y logotipo \\
+    Mensajes de bienvenida y vistas & \textbf{Bebas Neue} & Títulos y encabezados de sección \\
+    Párrafos descriptivos y ayudas & \textbf{Playfair Display} & Cuerpo de texto y subtítulos narrativos \\
+    Botones de acción & \textbf{Bebas Neue} & Texto de botón / llamada a la acción (CTA) \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Jerarquía tipográfica definida en el manual de diseño de NotiU.}
+\end{table}
+
+\subsection{Paleta de Colores Oficial}
+El sistema cromático utiliza fondos profundos (rosa/rojo oscuro y gamas de carmesí) combinados con tonos cálidos claros para contraste tipográfico y colores semánticos vivos para estados, etiquetas de materias y niveles de urgencia:
+
+\begin{table}[h!]
+  \centering
+  \small
+  \renewcommand{\arraystretch}{1.22}
+  \begin{tabularx}{\textwidth}{c l l X}
+    \toprule
+    \textbf{Muestra} & \textbf{Nombre Oficial} & \textbf{HEX} & \textbf{Uso Principal en Interfaz} \\
+    \midrule
+    \swatch{carmesiVivido}  & Carmesí Vívido       & \texttt{\#AA0330} & Acento primario, botones CTA, indicadores activos \\
+    \swatch{carmesiOscuroA} & Carmesí Oscuro I     & \texttt{\#800427} & Gradientes de botones, bordes activos y destacados \\
+    \swatch{carmesiOscuroB} & Carmesí Oscuro II    & \texttt{\#4E021A} & Superficies de tarjetas secundarias y contenedores \\
+    \swatch{carmesiOscuroC} & Carmesí Oscuro III   & \texttt{\#260A13} & Fondos de tarjetas principales y paneles modales \\
+    \swatch{rojoOscuro}     & Rojo Oscuro          & \texttt{\#2B1115} & Contenedores de formularios y campos de entrada \\
+    \swatch{rosaOscuro}     & Rosa Oscuro          & \texttt{\#10060A} & Fondo base principal de las pantallas móviles \\
+    \swatch{rojoMedio}      & Rojo                 & \texttt{\#9C484F} & Texto secundario, bordes sutiles e íconos pasivos \\
+    \swatch{naranjaClaro}   & Naranja Claro        & \texttt{\#E9DDD3} & Texto principal de alto contraste sobre fondo oscuro \\
+    \swatch{rojoPastel}     & Rojo Pastel Apagado  & \texttt{\#D8BFBC} & Subtítulos, etiquetas auxiliares y divisores \\
+    \midrule
+    \swatch{naranjaPrio}    & Naranja              & \texttt{\#EE6520} & Etiqueta semántica de \textbf{Prioridad Alta} \\
+    \swatch{amarilloPrio}   & Amarillo             & \texttt{\#EEE620} & Etiqueta semántica de \textbf{Prioridad Media} \\
+    \swatch{turquesaVivido} & Turquesa Vívido      & \texttt{\#20EEDB} & Etiqueta semántica de \textbf{Prioridad Baja} \\
+    \swatch{lavandaVivido}  & Lavanda Vívido       & \texttt{\#BF20EE} & Etiqueta semántica de \textbf{Prioridad Sin Fecha} \\
+    \swatch{marronOscuro}   & Marrón Oscuro        & \texttt{\#53230C} & Fondo de insignia para prioridad alta / alertas \\
+    \swatch{verdeOliva}     & Verde Oliva Oscuro   & \texttt{\#52530C} & Fondo de insignia para prioridad media \\
+    \swatch{turquesaOscuro} & Turquesa Oscuro      & \texttt{\#0C533E} & Fondo de insignia para prioridad baja \\
+    \swatch{rosaNeonOscuro} & Rosa Neón Oscuro     & \texttt{\#4F0C53} & Fondo de insignia para elementos sin fecha \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Hoja de estilos cromática y códigos hexadecimales de NotiU.}
+\end{table}
+
+% ==================== SECCIÓN 3: MÓDULOS DE LA APP MÓVIL ====================
+\section{Módulos Funcionales de la Aplicación Móvil (\texttt{mobile/})}
+
+El diseño de producto organiza la experiencia móvil en seis flujos principales, reflejados en la arquitectura modular de \texttt{mobile/src/features/}:
+
+\begin{enumerate}[leftmargin=1.5em, itemsep=4pt]
+  \item \textbf{Bienvenida y Autenticación (\texttt{Inicio}, \texttt{Crear Cuenta}, \texttt{Iniciar Sesión}):}
+  Pantalla de aterrizaje con el isotipo de NotiU, registro con nombre completo, correo electrónico y validación de contraseña (mínimo 8 caracteres), inicio de sesión mediante credenciales propias y botones proyectados para autenticación federada (Google, Apple y correo).
+
+  \item \textbf{Pantalla de Inicio (\texttt{Dashboard} y \texttt{Conexiones}):}
+  Saludo contextual acompañado por la mascota, contadores rápidos de tareas pendientes y próximas entregas, calendario mensual interactivo, carrusel de tareas del día y actividades realizadas, gráfico de anillo con porcentaje de avance semanal y bloque de \textbf{Conexiones} para enlazar Correo, Google Classroom, portal Universidad (Moodle) y Microsoft Teams.
+
+  \item \textbf{Gestión de Materias (\texttt{Mis Materias}):}
+  Buscador en tiempo real, resumen de materias registradas, recordatorios activos y porcentaje de avance general. Incluye filtros por estado (\emph{Todas, En curso, Pendiente, Finalizadas}) y clasificación por urgencia (\emph{Prioridad Alta, Media, Baja, Sin fecha}), además de vista detallada por entrega con fecha, hora límite, recordatorio anticipado y notas personales.
+
+  \item \textbf{Notas y Recordatorios (\texttt{Mis Recordatorios / Mis Apuntes}):}
+  Tablero tipo cuadrícula para ideas, temas de repaso y pendientes rápidos, junto con formulario unificado para crear una nueva nota o recordatorio especificando título, descripción personal, fecha, nivel de prioridad y asociación opcional a una materia.
+
+  \item \textbf{Plan de Estudio y Bienestar (\texttt{Mi Espacio / Tips}):}
+  Módulo de hábitos de estudio encabezado por un temporizador basado en la \textbf{Técnica Pomodoro} (bloques de 25 minutos de concentración y 5 minutos de descanso), tarjetas de exploración por categorías (\emph{Organización, Aprendizaje, Concentración, Preparación}) y la sección motivacional \emph{``El consejo de tu zorro''}.
+
+  \item \textbf{Perfil Académico y Configuración (\texttt{Mi Perfil} y \texttt{Ayuda}):}
+  Resumen estadístico (materias, actividades, completadas), gestión de información personal y académica (\emph{institución, carrera, semestre y jornada}), seguridad de contraseña/privacidad, control de notificaciones, apariencia/tema, estadísticas de progreso y acceso al Centro de Ayuda.
+\end{enumerate}
+
+% ==================== SECCIÓN 4: ARQUITECTURA Y API ====================
+\section{Arquitectura del Monorepo y Especificación de la API}
+
+\subsection{Estructura General del Repositorio}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \texttt{backend/}: API REST desarrollada con \textbf{Node.js ($\ge 18$)}, \textbf{TypeScript} y \textbf{Express 5}. Organizada por capas (\texttt{config}, \texttt{models}, \texttt{utils}, \texttt{middlewares}, \texttt{services}, \texttt{controllers} y \texttt{routes}).
+  \item \texttt{mobile/}: Estructura base de la aplicación cliente dividida en \texttt{assets}, \texttt{config}, \texttt{core}, \texttt{features} (\texttt{auth}, \texttt{notifications}, \texttt{profile}, \texttt{tasks}), \texttt{models}, \texttt{navigation}, \texttt{services} y \texttt{shared}.
+  \item \texttt{docs/}: Documentación formal del proyecto en \LaTeX\ y términos y condiciones de uso.
+\end{itemize}
+
+\subsection{Seguridad, Validación y Estado del Inventario de Endpoints}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Autenticación y roles:} Contraseñas protegidas con \texttt{scrypt} (\texttt{crypto} nativo de Node.js). Sesiones basadas en tokens aleatorios enviados mediante el encabezado \texttt{Authorization: Bearer <token>} con vigencia de 1 hora. Roles soportados: \texttt{student}, \texttt{teacher} y \texttt{admin}.
+  \item \textbf{Respuestas de error uniformes:} Formato estándar \texttt{\{"error": "...", "details": [...]\}} con códigos HTTP semánticos (\texttt{400}, \texttt{401}, \texttt{403}, \texttt{404}, \texttt{409} y \texttt{500}).
+  \item \textbf{Persistencia actual:} Almacenamiento en memoria (\emph{in-memory}) para agilidad de pruebas funcionales, con usuario administrador semilla (\texttt{admin@notiu.com} / \texttt{admin1234}).
+  \item \textbf{Cobertura del inventario API:} El diseño integral de la API contempla \textbf{43 endpoints} (base \texttt{http://localhost:3000}). Mientras en la entrega inicial del Taller 3 operaban 7 endpoints base, al corte de la versión \texttt{v0.5.0} ya se encuentran \textbf{22 endpoints implementados} en código y 21 proyectados para las integraciones de tareas, recordatorios, Pomodoro y conectores externos.
+\end{itemize}
+
+\subsection{Catálogo de Endpoints Implementados (\texttt{v0.5.0})}
+
+{\small
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{l l c p{6.4cm}}
+  \toprule
+  \textbf{Método} & \textbf{Ruta} & \textbf{Auth} & \textbf{Descripción Funcional} \\
+  \midrule
+  \endfirsthead
+  \toprule
+  \textbf{Método} & \textbf{Ruta} & \textbf{Auth} & \textbf{Descripción Funcional} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Salud del Servicio y Autenticación (\texttt{/api/health}, \texttt{/api/auth})}}} \\
+  \texttt{GET}   & \texttt{/api/health}          & No  & Comprueba disponibilidad del servidor (\texttt{status: ok}). \\
+  \texttt{POST}  & \texttt{/api/auth/register}   & No  & Registra usuario y retorna token de sesión (\texttt{201}). \\
+  \texttt{POST}  & \texttt{/api/auth/login}      & No  & Autentica credenciales y emite token Bearer por 1 h. \\
+  \texttt{POST}  & \texttt{/api/auth/logout}     & Sí  & Invalida el token de la sesión actual. \\
+  \texttt{GET}   & \texttt{/api/auth/me}         & Sí  & Devuelve los datos públicos del usuario autenticado. \\
+  \texttt{PATCH} & \texttt{/api/auth/password}   & Sí  & Actualiza contraseña y cierra las demás sesiones activas. \\
+  \texttt{GET}   & \texttt{/api/auth/users}      & Admin & Lista todos los usuarios registrados sin hash de clave. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Notificaciones Centralizadas (\texttt{/api/notifications})}}} \\
+  \texttt{GET}   & \texttt{/api/notifications}   & Sí  & Lista alertas paginadas (\texttt{page}, \texttt{limit}) filtrables por categoría (\texttt{URGENT}/\texttt{INFORMATIVE}) y lectura (\texttt{read}), de fuentes \texttt{MOODLE}, \texttt{CLASSROOM} o \texttt{SYSTEM}, incluyendo \texttt{unreadCount}. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Perfil Universitario y Ajustes (\texttt{/api/profile}, \texttt{/api/settings})}}} \\
+  \texttt{GET}   & \texttt{/api/profile}         & Sí  & Obtiene perfil académico (universidad, carrera, semestre, intereses y contadores de materias/conexiones). \\
+  \texttt{PATCH} & \texttt{/api/profile}         & Sí  & Actualiza parcialmente datos personales y académicos. \\
+  \texttt{GET}   & \texttt{/api/settings}        & Sí  & Consulta tema (\texttt{light}/\texttt{dark}/\texttt{system}), canales de alerta (\texttt{email}, \texttt{push}, \texttt{studyReminders}) y privacidad. \\
+  \texttt{PATCH} & \texttt{/api/settings}        & Sí  & Modifica parcialmente preferencias visuales, alertas o privacidad (\texttt{showProfileToPeers}). \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Materias y Horarios (\texttt{/api/subjects})}}} \\
+  \texttt{POST}   & \texttt{/api/subjects}                      & Sí & Registra una asignatura con créditos, semestre, docente, color y bloques de horario. \\
+  \texttt{GET}    & \texttt{/api/subjects}                      & Sí & Lista materias del estudiante con filtros por \texttt{semester}, \texttt{status} y \texttt{search}, e incluye promedio actual. \\
+  \texttt{GET}    & \texttt{/api/subjects/:subjectId}           & Sí & Consulta detalle de la materia y resumen ponderado de notas. \\
+  \texttt{PATCH}  & \texttt{/api/subjects/:subjectId}           & Sí & Actualización parcial de atributos y horario de la materia. \\
+  \texttt{GET}    & \texttt{/api/subjects/:subjectId/schedule}  & Sí & Devuelve las sesiones semanales de clase (día, hora inicio/fin y salón). \\
+  \texttt{DELETE} & \texttt{/api/subjects/:subjectId}           & Sí & Elimina la materia junto con sus calificaciones asociadas. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Calificaciones y Proyección por Cortes (\texttt{/api/grades}, \texttt{/api/subjects/:id/grades})}}} \\
+  \texttt{POST} & \texttt{/api/subjects/:subjectId/grades}   & Sí & Registra una calificación (\texttt{0.0--5.0}), porcentaje (\texttt{1--100}) y corte (\texttt{1--4}). \\
+  \texttt{GET}  & \texttt{/api/subjects/:subjectId/grades}   & Sí & Lista las notas de una materia, peso evaluado y promedio ponderado. \\
+  \texttt{GET}  & \texttt{/api/subjects/:subjectId/progress} & Sí & Calcula porcentaje evaluado/restante, nota requerida para aprobar en \texttt{3.0} (\texttt{neededToPass}) y estado (\texttt{en\_curso}, \texttt{aprobada}, \texttt{reprobada}, \texttt{aprobacion\_asegurada}, \texttt{imposible\_aprobar}). \\
+  \texttt{GET}  & \texttt{/api/grades}                       & Sí & Consolidado general de notas filtrable por \texttt{semester} y \texttt{corte}. \\
+\end{longtable}
+}
+
+% ==================== SECCIÓN 5: NOTAS DE VERSIÓN ====================
+\section{Notas de Versión (\emph{Release Notes})}
+
+El historial de versiones refleja la evolución real del repositorio \texttt{Manum03/NotiU} desde su fundación hasta el corte actual:
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.5.0} --- Calificaciones, Proyección Académica y Documentación Integral}
+\textbf{Fecha:} 5 -- 7 de noviembre de 2026 \textbar\ \textbf{Referencias:} \texttt{862310c}, \texttt{4358157}, \texttt{2fdeb3c}, \texttt{9ae1fb3} y rama \texttt{AlejandroR}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Nuevo --- Módulo de Calificaciones (\texttt{grades}):} Registro y consulta de notas por asignatura (\texttt{POST} y \texttt{GET /api/subjects/:subjectId/grades}) en escala colombiana de \texttt{0.0} a \texttt{5.0} con soporte para 4 cortes académicos, además de listado consolidado \texttt{GET /api/grades}.
+  \item \textbf{Nuevo --- Motor de Progreso y Proyección:} Endpoint \texttt{GET /api/subjects/:subjectId/progress} que calcula el porcentaje evaluado, el porcentaje restante y la nota mínima necesaria para alcanzar \texttt{3.0}, clasificando automáticamente cada asignatura (\texttt{en\_curso}, \texttt{aprobada}, \texttt{reprobada}, \texttt{aprobacion\_asegurada}, \texttt{imposible\_aprobar}).
+  \item \textbf{Nuevo --- Cierre CRUD de Materias:} Implementación de \texttt{DELETE /api/subjects/:subjectId} con eliminación en cascada de las notas vinculadas y conteo de registros depurados (\texttt{deletedGrades}).
+  \item \textbf{Documentación (\texttt{docs/}):} Incorporación en \LaTeX\ del manual unificado de arquitectura, identidad de marca, hoja de estilos UI/UX, notas de versión (\texttt{documentacion\_notiu.tex}) y Términos y Condiciones preliminares de una página (\texttt{terminos\_y\_condiciones.tex}), junto con la actualización de \texttt{README.md}.
+\end{itemize}
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.4.0} --- Gestión de Asignaturas y Horarios Semanales}
+\textbf{Fecha:} 4 -- 5 de noviembre de 2026 \textbar\ \textbf{Commits:} \texttt{0263e4e}, \texttt{442ee7b}, \texttt{45c5ace}, \texttt{0adebea}, \texttt{9c779de}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Nuevo --- Catálogo de Materias (\texttt{subjects}):} Creación (\texttt{POST /api/subjects}), listado con filtros por semestre, estado y texto (\texttt{GET /api/subjects}), consulta individual (\texttt{GET /api/subjects/:subjectId}) y edición parcial (\texttt{PATCH /api/subjects/:subjectId}) con aislamiento estricto por usuario.
+  \item \textbf{Nuevo --- Horario por Materia:} Endpoint \texttt{GET /api/subjects/:subjectId/schedule} con validación de días (\texttt{Lunes} a \texttt{Domingo}), rangos horarios en formato 24h (\texttt{HH:mm}) y aula asignada.
+\end{itemize}
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.3.0} --- Perfil Estudiantil y Preferencias de Usuario}
+\textbf{Fecha:} 4 de noviembre de 2026 \textbar\ \textbf{Commits:} \texttt{e4a84f2}, \texttt{1513054}, \texttt{9240447}, \texttt{dc2e760}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Nuevo --- Perfil Universitario (\texttt{profile}):} Consulta y actualización parcial (\texttt{GET/PATCH /api/profile}) de carrera, semestre, universidad, biografía, avatar, intereses e indicadores resumidos.
+  \item \textbf{Nuevo --- Configuración (\texttt{settings}):} Gestión de preferencias (\texttt{GET/PATCH /api/settings}) para tema visual (\texttt{light}, \texttt{dark}, \texttt{system}), canales de alerta (\texttt{email}, \texttt{push}, \texttt{studyReminders}) y privacidad entre compañeros.
+\end{itemize}
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.2.0} --- Bandeja de Notificaciones y Limpieza del Repositorio}
+\textbf{Fecha:} 2 de noviembre de 2026 \textbar\ \textbf{Commits:} \texttt{4799d92}, \texttt{217d0af}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Nuevo --- API de Notificaciones:} Implementación de \texttt{GET /api/notifications} con soporte de paginación, conteo de alertas sin leer (\texttt{unreadCount}), categorías (\texttt{URGENT}, \texttt{INFORMATIVE}) y orígenes (\texttt{MOODLE}, \texttt{CLASSROOM}, \texttt{SYSTEM}).
+  \item \textbf{Mantenimiento:} Adición de \texttt{backend/.gitignore} y exclusión de \texttt{node\_modules} del control de versiones.
+\end{itemize}
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.1.0} --- Fundación del Monorepo y Módulo de Autenticación}
+\textbf{Fecha:} 31 de octubre de 2026 \textbar\ \textbf{Commits:} \texttt{2f7e2c7}, \texttt{57a00b5}, \texttt{b032684}, \texttt{2056bbf}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Inicialización:} Creación del monorepo (\texttt{backend/}, \texttt{mobile/}, \texttt{docs/}) y estructura modular del cliente móvil.
+  \item \textbf{Backend Base (Taller 3):} Servidor Express 5 + TypeScript con hashing \texttt{scrypt}, middlewares \texttt{requireAuth}/\texttt{requireRole}, manejo centralizado de errores, endpoint \texttt{GET /api/health}, los 6 endpoints de \texttt{/api/auth} y guía inicial de pruebas en Postman.
+\end{itemize}
+
+\subsection*{Próximos Hitos Planeados (\texttt{v0.6.0+})}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item Integración de base de datos persistente para reemplazar los arreglos en memoria.
+  \item Implementación de los endpoints restantes del inventario general (CRUD de apuntes/recordatorios, sesiones Pomodoro, marcado de lectura de notificaciones y conectores con Classroom/Moodle/Teams).
+  \item Construcción de las vistas móviles en \texttt{mobile/} siguiendo la hoja de estilos carmesí y las tipografías \emph{Bebas Neue} y \emph{Playfair Display}.
+\end{itemize}
+
+\end{document}
