@@ -14,24 +14,15 @@ import {
 } from "../models/subject.dto";
 import { ScheduleBlock, Subject, WEEK_DAYS } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
+import { fold, normalize } from "../utils/text";
 import { gradeService } from "./grade.service";
+import { noteService } from "./note.service";
 
 // ---- Almacenamiento en memoria (no hay base de datos) ----
 // Los datos se pierden al reiniciar el servidor
 const subjects: Subject[] = [];
 
 const DEFAULT_COLOR = "#3B82F6";
-
-// Para comparar sin importar mayúsculas ni espacios en los bordes
-const normalize = (text: string): string => text.trim().toLowerCase();
-
-// Para buscar: además quita los acentos ("Cálculo" -> "calculo")
-const fold = (text: string): string =>
-  text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
 
 // Copia del horario ordenada por día (Lunes a Domingo) y luego por hora de inicio
 const sortSchedule = (blocks: ScheduleBlock[]): ScheduleBlock[] =>
@@ -190,13 +181,13 @@ export const subjectService = {
   },
 
   // Borrado físico y en cascada: elimina las notas de la materia y luego la materia.
-  // Es irreversible. TODO: cuando exista el módulo de apuntes, los que referencien
-  // esta materia deben quedar con subjectId = null en lugar de borrarse
+  // Es irreversible. Los apuntes que la referencien no se borran: quedan con subjectId = null
   deleteSubject(userId: number, subjectId: string): DeleteSubjectResponseDto {
     const subject = getOwnedSubject(userId, subjectId); // 404 si no existe o no es suya
 
     // Todo es síncrono: no hay forma de ver la materia a medio borrar
     const deletedGrades = gradeService.deleteBySubject(subject.id);
+    noteService.detachSubject(subject.id);
     subjects.splice(
       subjects.findIndex((s) => s.id === subject.id),
       1,

@@ -63,7 +63,7 @@ pdflatex terminos_y_condiciones.tex
 
 API REST construida con **Node.js**, **TypeScript** y **Express 5**.
 
-- **Sin base de datos (prototipo actual):** usuarios, sesiones, materias, calificaciones, ajustes y notificaciones se almacenan en arreglos en memoria (se reinician al reiniciar el servidor).
+- **Sin base de datos (prototipo actual):** usuarios, sesiones, materias, calificaciones, ajustes, notificaciones, apuntes, conexiones, grupos de estudio y tips se almacenan en arreglos en memoria (se reinician al reiniciar el servidor).
 - **Tipado estricto:** modelos de dominio y DTOs de entrada/salida en TypeScript.
 - **Validaciones:** campos obligatorios, formato de email, contraseña de mínimo 8 caracteres, rangos de notas (`0.0`–`5.0`), cortes (`1`–`4`) y bloques horarios; errores detallados en `details`.
 - **Manejo de errores:** respuestas JSON uniformes con códigos `400`, `401`, `403`, `404`, `409` y `500` (incluyendo JSON mal formado).
@@ -71,7 +71,7 @@ API REST construida con **Node.js**, **TypeScript** y **Express 5**.
 
 ### Cobertura de Endpoints (`v0.5.0`)
 
-Del inventario general de **43 endpoints** diseñados para NotiU (base `http://localhost:3000`), el backend cuenta con **22 endpoints implementados**:
+Del inventario general de **43 endpoints** diseñados para NotiU (base `http://localhost:3000`), el backend cuenta con **41 endpoints implementados**:
 
 | Módulo | Método | Ruta | Auth | Descripción |
 |---|---|---|---|---|
@@ -97,6 +97,25 @@ Del inventario general de **43 endpoints** diseñados para NotiU (base `http://l
 | **Notas** | `GET` | `/api/subjects/:subjectId/grades` | Sí | Lista las notas de una materia y su promedio ponderado *(en `main` `v0.5.0`)* |
 | **Notas** | `GET` | `/api/subjects/:subjectId/progress` | Sí | Proyecta estado de aprobación y nota necesaria en lo restante *(en `main` `v0.5.0`)* |
 | **Notas** | `GET` | `/api/grades` | Sí | Consolidado general de notas filtrable por `semester` y `corte` *(en `main` `v0.5.0`)* |
+| **Apuntes** | `GET` | `/api/notes` | Sí | Lista apuntes paginados con filtros (`subjectId`, `tag`, `search`); fijados primero |
+| **Apuntes** | `POST` | `/api/notes` | Sí | Crea un apunte (título 1–150) con materia y etiquetas opcionales (`201`) |
+| **Apuntes** | `PATCH` | `/api/notes/:noteId` | Sí | Edita título, contenido, materia, etiquetas o fijado; solo el autor (`403`) |
+| **Apuntes** | `DELETE` | `/api/notes/:noteId` | Sí | Elimina un apunte propio |
+| **Conexiones** | `GET` | `/api/peers` | Sí | Descubre compañeros (`career`, `subjectCode`, `search`) con materias en común; respeta `showProfileToPeers` |
+| **Conexiones** | `GET` | `/api/connections` | Sí | Lista conexiones aceptadas y solicitudes pendientes (`status`) |
+| **Conexiones** | `POST` | `/api/connections/requests` | Sí | Envía una solicitud de conexión (`201`); sin auto-solicitudes ni duplicados (`409`) |
+| **Conexiones** | `PATCH` | `/api/connections/requests/:requestId` | Sí | Acepta o rechaza (`accept`/`reject`) una solicitud recibida pendiente |
+| **Conexiones** | `DELETE` | `/api/connections/:connectionId` | Sí | Elimina una conexión o cancela una solicitud enviada |
+| **Grupos de estudio** | `GET` | `/api/study-groups` | Sí | Lista grupos con cupos disponibles (`subject`, `search`, `onlyMine`) |
+| **Grupos de estudio** | `GET` | `/api/study-groups/:groupId` | Sí | Detalle del grupo con integrantes y roles |
+| **Grupos de estudio** | `POST` | `/api/study-groups` | Sí | Crea un grupo (cupo `2–50`); el creador queda como `admin` (`201`) |
+| **Grupos de estudio** | `POST` | `/api/study-groups/:groupId/join` | Sí | Se une a un grupo si hay cupo |
+| **Grupos de estudio** | `DELETE` | `/api/study-groups/:groupId/leave` | Sí | Sale del grupo; si sale el admin, el rol pasa al miembro más antiguo y el grupo se cierra si queda vacío |
+| **Tips** | `GET` | `/api/tips` | Sí | Lista tips de estudio (`tag`, `savedOnly`, `search`, `page`) con bandera `isSaved` |
+| **Tips** | `GET` | `/api/tips/tags` | Sí | Catálogo de etiquetas con el conteo de tips |
+| **Tips** | `GET` | `/api/tips/:tipId` | Sí | Contenido completo y recursos de un tip |
+| **Tips** | `POST` | `/api/tips/:tipId/save` | Sí | Guarda un tip en favoritos (`201`, `409` si ya estaba) |
+| **Tips** | `DELETE` | `/api/tips/:tipId/save` | Sí | Quita un tip de favoritos |
 
 Los endpoints protegidos requieren el encabezado:
 
@@ -115,7 +134,7 @@ Authorization: Bearer <token>
 ```
 backend/src/
 ├── config/env.ts                      Puerto y duración de la sesión
-├── models/                            Modelos de dominio y DTOs (auth, profile, settings, subject, grade, notification)
+├── models/                            Modelos de dominio y DTOs (auth, profile, settings, subject, grade, notification, note, connection, study-group, tip)
 ├── utils/                             Validadores, hash scrypt y clase HttpError
 ├── services/                          Lógica de negocio y almacenamiento en memoria
 ├── middlewares/                       requireAuth, requireRole, manejo de errores y 404

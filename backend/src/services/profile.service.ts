@@ -5,6 +5,8 @@ import {
 } from "../models/profile.dto";
 import { Profile } from "../models/profile.model";
 import { authService } from "./auth.service";
+import { connectionService } from "./connection.service";
+import { subjectService } from "./subject.service";
 
 // ---- "Base de datos" en memoria (se reinicia al reiniciar el servidor) ----
 const profiles: Profile[] = [];
@@ -32,12 +34,25 @@ const buildProfileResponse = (userId: number): ProfileResponseDto => {
     university: profile.university,
     avatarUrl: profile.avatarUrl,
     interests: [...profile.interests],
-    // TODO: calcular con los módulos de materias y conexiones cuando existan
-    stats: { subjects: 0, connections: 0 },
+    stats: {
+      subjects: subjectService.getOwnedSubjects(userId).length,
+      connections: connectionService.countConnections(userId),
+    },
   };
 };
 
 export const profileService = {
+  // Datos académicos de cualquier usuario, para módulos como conexiones.
+  // No crea el perfil si no existe: leer no modifica nada
+  getAcademicInfo(userId: number): Pick<Profile, "career" | "semester" | "avatarUrl"> {
+    const profile = profiles.find((p) => p.userId === userId);
+    return {
+      career: profile?.career ?? "",
+      semester: profile?.semester ?? 1,
+      avatarUrl: profile?.avatarUrl,
+    };
+  },
+
   getProfile(userId: number): ProfileResponseDto {
     return buildProfileResponse(userId);
   },
