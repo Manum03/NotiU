@@ -21,7 +21,7 @@
   .pt { padding-left:10px; border-left:3px solid var(--acc); } .pt span, .logo span { color:var(--acc); }
   .logo { font-size:4.6rem; text-align:center; margin:30px 0 0; } .logo.s { font-size:3.4rem; margin:6px 0 10px; }
   label { display:block; font-size:.82rem; margin:12px 0 5px; }
-  input, select { width:100%; padding:12px 14px; color:var(--tx); font:inherit; border:1px solid var(--c1); border-radius:14px;
+  input, select, textarea { width:100%; padding:12px 14px; color:var(--tx); font:inherit; border:1px solid var(--c1); border-radius:14px;
                   background:linear-gradient(90deg,var(--field),var(--c2)); }
   input::placeholder { color:var(--mute); } input[type=checkbox] { width:auto; margin-right:8px; }
   .check { display:flex; align-items:center; margin:10px 0; font-size:.95rem; }
@@ -60,6 +60,7 @@
   #toast { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); width:calc(100% - 32px); max-width:380px; padding:10px 14px; border-radius:12px;
            background:var(--c2); font-size:.9rem; display:none; z-index:9; } #toast.show { display:block; } #toast.bad { border-left:4px solid var(--hi); }
   .dot { display:inline-block; width:9px; height:9px; margin-right:6px; border-radius:50%; background:var(--mute); } .dot.up { background:var(--lo); }
+  textarea { resize:vertical; } a { color:var(--lo); } .pre { white-space:pre-wrap; }
   pre { background:var(--c3); padding:10px; border-radius:10px; font-size:.75rem; overflow:auto; white-space:pre-wrap; }
 </style>
 </head>
@@ -78,7 +79,10 @@ const fmt = (d) => { if (!d) return ""; const t = d.length === 10 ? new Date(d +
 const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
                 set(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} } };
 const S = { token:store.get("token"), base:store.get("base") || (location.protocol.startsWith("http") ? location.origin : "http://localhost:3000"), user:null, screen:"welcome",
-            tab:"inicio", subjectId:null, status:"", search:"", cat:"", log:[] };
+            tab:"inicio", subjectId:null, status:"", search:"", cat:"", log:[],
+            subjects:[], noteSearch:"", noteTag:"", noteSubject:"", editNote:null,
+            space:"tips", tipId:null, tipTag:"", tipSaved:false, tipSearch:"",
+            groupId:null, groupMine:false, groupSearch:"", peerSearch:"", peerCareer:"" };
 const ST = { cursando:["EN CURSO", "on"], pendiente:["PENDIENTE", "pen"], aprobada:["FINALIZADA", "fin"] };
 const head = (a, b, sub) => `<h1 class="pt">${a} <span>${b}</span></h1><p class="sub" style="margin-top:6px">${sub}</p>`;
 
@@ -126,11 +130,8 @@ async function render() {
   if (S.tab === "inicio") viewHome();
   else if (S.tab === "materias") S.subjectId ? viewSubject() : viewSubjects();
   else if (S.tab === "perfil") viewProfile();
-  else if (S.tab === "notas") viewSoon("MIS", "RECORDATORIOS", "Tus ideas y pendientes importantes, siempre a mano.", "Apuntes y recordatorios (endpoints #25 al #28 del inventario).");
-  else viewSoon("MI", "ESPACIO", "Organiza tus sesiones y encuentra tu ritmo.", "Tips y plan de estudio (endpoints #39 al #43 del inventario).");
-}
-function viewSoon(a, b, sub, what) {
-  $("#app").innerHTML = head(a, b, sub) + `<div class="card c" style="margin-top:20px"><h3>PRÓXIMAMENTE</h3><p class="sub">Aún no hay backend para esta pantalla.<br>${what}</p></div>`;
+  else if (S.tab === "notas") viewNotes();
+  else viewSpace();
 }
 
 /* ---------- Bienvenida / Iniciar sesión / Crear cuenta ---------- */
@@ -327,12 +328,190 @@ async function viewProfile() {
     <details class="card"><summary>Llamadas a la API<small>Para verificar los endpoints</small></summary><pre id="log">${esc(S.log.join("\n"))}</pre></details>`;
 }
 
+/* ---------- Apuntes y recordatorios ---------- */
+const tagsOf = (s) => String(s || "").split(",").map((t) => t.trim()).filter(Boolean);
+const subjOpts = (first, sel) => `<option value="">${first}</option>` +
+  S.subjects.map((s) => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+async function viewNotes() {
+  $("#app").innerHTML = head("MIS", "RECORDATORIOS", "Tus ideas y pendientes importantes, siempre a mano.") + `
+    <input id="noteSearch" placeholder="Buscar apunte..." value="${esc(S.noteSearch)}" style="margin-top:14px">
+    <select id="noteSubject" style="margin-top:8px"><option value="">Todas las materias</option></select>
+    <div class="chips" id="noteFilter"></div>
+    <details class="card list"><summary>NUEVO APUNTE<small>Título, contenido, materia y etiquetas</small></summary><form data-form="newNote" class="in">
+      <label>Título</label><input name="title"><label>Contenido</label><textarea name="content" rows="4"></textarea>
+      <label>Materia (opcional)</label><select name="subjectId" id="newNoteSubject"><option value="">Sin materia</option></select>
+      <label>Etiquetas (separadas por coma)</label><input name="tags" placeholder="parcial, repaso">
+      <button class="btn">GUARDAR APUNTE</button></form></details>
+    <div id="notes" class="sub" style="margin-top:12px">Cargando…</div>`;
+  const r = await api("GET", "/api/subjects");
+  if (S.tab !== "notas" || !$("#noteSubject")) return;
+  S.subjects = r.ok ? r.data.data : [];
+  $("#noteSubject").innerHTML = subjOpts("Todas las materias", S.noteSubject);
+  $("#newNoteSubject").innerHTML = subjOpts("Sin materia");
+  loadNotes();
+}
+async function loadNotes() {
+  const p = new URLSearchParams({ limit:"50" });
+  if (S.noteSearch) p.set("search", S.noteSearch); if (S.noteTag) p.set("tag", S.noteTag); if (S.noteSubject) p.set("subjectId", S.noteSubject);
+  const r = await api("GET", "/api/notes?" + p);
+  const box = $("#notes"); if (!box || S.tab !== "notas") return;
+  $("#noteFilter").innerHTML = S.noteTag ? `<button class="chip on" data-act="noteTag" data-v="">#${esc(S.noteTag)} ✕</button>` : "";
+  if (!r.ok) { box.textContent = "No se pudieron cargar los apuntes."; return fail(r); }
+  box.className = "";
+  const subj = (id) => S.subjects.find((s) => s.id === id)?.name || "Materia";
+  box.innerHTML = r.data.data.length ? r.data.data.map((n) => `<div class="card">
+      <div class="top"><h3>${n.isPinned ? "📌 " : ""}${esc(n.title)}</h3><small>${fmt(n.updatedAt)}</small></div>
+      <p class="pre">${esc(n.content)}</p><small>${n.subjectId ? esc(subj(n.subjectId)) : "Sin materia"}</small>
+      ${n.tags.length ? `<div class="chips">${n.tags.map((t) => `<button class="chip" data-act="noteTag" data-v="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
+      <div class="chips"><button class="chip" data-act="pin" data-id="${n.id}" data-v="${n.isPinned ? "" : "1"}">${n.isPinned ? "DESFIJAR" : "FIJAR"}</button>
+        <button class="chip" data-act="editNote" data-id="${n.id}">${S.editNote === n.id ? "CERRAR" : "EDITAR"}</button>
+        <button class="chip" data-act="delNote" data-id="${n.id}">ELIMINAR</button></div>
+      ${S.editNote === n.id ? `<form data-form="editNote"><input type="hidden" name="id" value="${n.id}">
+        <label>Título</label><input name="title" value="${esc(n.title)}"><label>Contenido</label><textarea name="content" rows="4">${esc(n.content)}</textarea>
+        <label>Materia</label><select name="subjectId">${subjOpts("Sin materia", n.subjectId)}</select>
+        <label>Etiquetas (separadas por coma)</label><input name="tags" value="${esc(n.tags.join(", "))}"><button class="btn">ACTUALIZAR</button></form>` : ""}
+    </div>`).join("") + `<p class="sub">${r.data.meta.total} apunte(s)</p>`
+    : `<p class="sub">No hay apuntes${S.noteSearch || S.noteTag || S.noteSubject ? " con ese filtro" : " todavía. Crea el primero"}.</p>`;
+}
+
+/* ---------- Mi espacio: tips, grupos de estudio y compañeros ---------- */
+const inSpace = (v) => S.tab === "espacio" && S.space === v && $("#space");
+function viewSpace() {
+  $("#app").innerHTML = head("MI", "ESPACIO", "Organiza tus sesiones y encuentra tu ritmo.") + `
+    <div class="chips" style="margin-top:14px">${[["tips", "TIPS"], ["grupos", "GRUPOS"], ["red", "COMPAÑEROS"]]
+      .map(([v, l]) => `<button class="chip ${S.space === v ? "on" : ""}" data-act="space" data-v="${v}">${l}</button>`).join("")}</div>
+    <div id="space"></div>`;
+  if (S.space === "tips") S.tipId ? viewTip() : viewTips();
+  else if (S.space === "grupos") S.groupId ? viewGroup() : viewGroups();
+  else viewPeers();
+}
+
+// Tips
+const saveBtn = (t) => `<button class="chip ${t.isSaved ? "on" : ""}" data-act="saveTip" data-id="${t.id}" data-v="${t.isSaved ? "1" : ""}">${t.isSaved ? "★ GUARDADO" : "☆ GUARDAR"}</button>`;
+async function viewTips() {
+  $("#space").innerHTML = `<input id="tipSearch" placeholder="Buscar tip..." value="${esc(S.tipSearch)}">
+    <div class="chips" id="tipTags"></div><div id="tips" class="sub">Cargando…</div>`;
+  loadTips();
+  const r = await api("GET", "/api/tips/tags");
+  if (!inSpace("tips") || !$("#tipTags")) return;
+  const chip = (act, v, l, on) => `<button class="chip ${on ? "on" : ""}" data-act="${act}" data-v="${esc(v)}">${l}</button>`;
+  $("#tipTags").innerHTML = chip("tipTag", "", "TODOS", !S.tipTag && !S.tipSaved) + chip("tipSaved", "", "★ GUARDADOS", S.tipSaved)
+    + (r.ok ? r.data.tags.map((t) => chip("tipTag", t.name, `${esc(t.name)} (${t.count})`, S.tipTag === t.name)).join("") : "");
+}
+async function loadTips() {
+  const p = new URLSearchParams({ limit:"50" });
+  if (S.tipTag) p.set("tag", S.tipTag); if (S.tipSaved) p.set("savedOnly", "true"); if (S.tipSearch) p.set("search", S.tipSearch);
+  const r = await api("GET", "/api/tips?" + p);
+  const box = $("#tips"); if (!box || !inSpace("tips")) return;
+  if (!r.ok) { box.textContent = "No se pudieron cargar los tips."; return fail(r); }
+  box.className = "";
+  box.innerHTML = r.data.data.length ? r.data.data.map((t) => `<div class="card" data-act="tip" data-id="${t.id}">
+      <div class="top"><h3>${esc(t.title)}</h3>${saveBtn(t)}</div><p>${esc(t.summary)}</p>
+      <small>${esc(t.category)} · ${t.readingTimeMin} min de lectura · ${t.tags.map(esc).join(", ")}</small></div>`).join("")
+    : `<p class="sub">${S.tipSaved ? "Aún no tienes tips guardados." : "No hay tips con ese filtro."}</p>`;
+}
+async function viewTip() {
+  const id = S.tipId; $("#space").innerHTML = `<p class="sub">Cargando…</p>`;
+  const r = await api("GET", "/api/tips/" + id);
+  if (!inSpace("tips") || S.tipId !== id) return;
+  if (!r.ok) { fail(r); S.tipId = null; return viewTips(); }
+  const t = r.data, links = t.resources.filter((u) => /^https?:\/\//i.test(u));
+  $("#space").innerHTML = `<button class="link" data-act="tipBack">← Todos los tips</button>
+    <div class="card"><div class="top"><h2 style="margin:0">${esc(t.title)}</h2>${saveBtn(t)}</div>
+      <small>${esc(t.author)} · ${fmt(t.createdAt)} · ${t.tags.map(esc).join(", ")}</small>
+      <p class="pre" style="margin-top:10px">${esc(t.content)}</p>
+      ${links.length ? `<h3 style="margin-top:12px">RECURSOS</h3>` + links.map((u) => `<p><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a></p>`).join("") : ""}</div>`;
+}
+
+// Grupos de estudio
+function viewGroups() {
+  $("#space").innerHTML = `<input id="groupSearch" placeholder="Buscar grupo..." value="${esc(S.groupSearch)}">
+    <div class="chips">${[["", "TODOS"], ["1", "MIS GRUPOS"]].map(([v, l]) => `<button class="chip ${S.groupMine === !!v ? "on" : ""}" data-act="groupMine" data-v="${v}">${l}</button>`).join("")}</div>
+    <details class="card list"><summary>CREAR GRUPO<small>Quedarás como administrador</small></summary><form data-form="newGroup" class="in">
+      <label>Nombre (mínimo 3 caracteres)</label><input name="name"><label>Materia</label><input name="subjectName" placeholder="Cálculo I">
+      <label>Descripción</label><textarea name="description" rows="3"></textarea>
+      <div class="two" style="margin:0"><div><label>Cupo (2-50)</label><input name="maxMembers" type="number" min="2" max="50" value="6"></div>
+        <div><label>Horario (opcional)</label><input name="schedule" placeholder="Martes 18:00"></div></div>
+      <label>Enlace de reunión (opcional)</label><input name="meetingLink" placeholder="https://meet.google.com/...">
+      <button class="btn">CREAR GRUPO</button></form></details>
+    <div id="groups" class="sub">Cargando…</div>`;
+  loadGroups();
+}
+async function loadGroups() {
+  const p = new URLSearchParams(); if (S.groupMine) p.set("onlyMine", "true"); if (S.groupSearch) p.set("search", S.groupSearch);
+  const qs = p.toString(), r = await api("GET", "/api/study-groups" + (qs ? "?" + qs : ""));
+  const box = $("#groups"); if (!box || !inSpace("grupos")) return;
+  if (!r.ok) { box.textContent = "No se pudieron cargar los grupos."; return fail(r); }
+  box.className = "";
+  box.innerHTML = r.data.data.length ? r.data.data.map((g) => `<div class="card" data-act="group" data-id="${g.id}">
+      <div class="top"><h3>${esc(g.name)}</h3>${g.isMember ? `<span class="pill on">MIEMBRO</span>` : g.availableSpots ? "" : `<span class="pill fin">LLENO</span>`}</div>
+      <small>${esc(g.subjectName)}${g.nextSession ? " · " + esc(g.nextSession) : ""}</small>
+      <div class="bar"><i style="width:${(g.membersCount / g.maxMembers) * 100}%"></i></div>
+      <small>${g.membersCount}/${g.maxMembers} miembros · ${g.availableSpots} cupo(s) libre(s)</small></div>`).join("")
+    : `<p class="sub">${S.groupMine ? "Aún no perteneces a ningún grupo." : S.groupSearch ? "No hay grupos con esa búsqueda." : "No hay grupos todavía. ¡Crea el primero!"}</p>`;
+}
+async function viewGroup() {
+  const id = S.groupId; $("#space").innerHTML = `<p class="sub">Cargando…</p>`;
+  const r = await api("GET", "/api/study-groups/" + id);
+  if (!inSpace("grupos") || S.groupId !== id) return;
+  if (!r.ok) { fail(r); S.groupId = null; return viewGroups(); }
+  const g = r.data, me = String(S.user.id), mine = g.members.some((m) => m.id === me), full = g.members.length >= g.maxMembers;
+  $("#space").innerHTML = `<button class="link" data-act="groupBack">← Grupos</button>
+    <div class="card"><h2 style="margin:0">${esc(g.name)}</h2><small>${esc(g.subjectName)}${g.schedule ? " · " + esc(g.schedule) : ""}</small>
+      <p class="pre" style="margin-top:8px">${esc(g.description)}</p>
+      ${g.meetingLink && /^https?:\/\//i.test(g.meetingLink) ? `<p><a href="${esc(g.meetingLink)}" target="_blank" rel="noopener">Enlace de la reunión</a></p>` : ""}</div>
+    <h2>MIEMBROS (${g.members.length}/${g.maxMembers})</h2>
+    <div class="card list">${g.members.map((m) => `<p style="padding:8px 0">${esc(m.name)}${m.id === me ? " (tú)" : ""} <small>· ${m.role === "admin" ? "administrador" : "miembro"}</small></p>`).join("")}</div>
+    ${mine ? `<button class="btn out" data-act="leaveGroup">SALIR DEL GRUPO</button>`
+      : `<button class="btn" data-act="joinGroup" ${full ? "disabled" : ""}>${full ? "GRUPO LLENO" : "UNIRME AL GRUPO"}</button>`}`;
+}
+
+// Compañeros y red de contactos
+function viewPeers() {
+  $("#space").innerHTML = `<div id="conns" class="sub">Cargando…</div>
+    <h2>BUSCAR COMPAÑEROS</h2>
+    <div class="two" style="margin-top:0"><input id="peerSearch" placeholder="Nombre..." value="${esc(S.peerSearch)}"><input id="peerCareer" placeholder="Carrera..." value="${esc(S.peerCareer)}"></div>
+    <input id="connMsg" placeholder="Mensaje para tus solicitudes (opcional)" style="margin-top:8px">
+    <div id="peers" class="sub" style="margin-top:8px">Cargando…</div>`;
+  loadConnections(); loadPeers();
+}
+const reloadNetwork = () => { loadConnections(); loadPeers(); };
+async function loadConnections() {
+  const r = await api("GET", "/api/connections");
+  const box = $("#conns"); if (!box || !inSpace("red")) return;
+  if (!r.ok) { box.textContent = "No se pudieron cargar tus conexiones."; return fail(r); }
+  box.className = "";
+  const who = (p) => `<h3>${esc(p.name)}</h3><small>${esc(p.career || "Sin carrera")}</small>`;
+  const recv = r.data.pendingRequests.filter((x) => x.direction === "received"), sent = r.data.pendingRequests.filter((x) => x.direction === "sent");
+  box.innerHTML = (recv.length ? `<h2>SOLICITUDES RECIBIDAS</h2>` + recv.map((x) => `<div class="card">${who(x.peer)}${x.message ? `<p>“${esc(x.message)}”</p>` : ""}
+      <div class="chips"><button class="chip on" data-act="respond" data-id="${x.requestId}" data-v="accept">ACEPTAR</button>
+        <button class="chip" data-act="respond" data-id="${x.requestId}" data-v="reject">RECHAZAR</button></div></div>`).join("") : "")
+    + `<h2>MIS CONEXIONES (${r.data.connections.length})</h2>`
+    + (r.data.connections.length ? r.data.connections.map((x) => `<div class="card"><div class="top"><div>${who(x.peer)}<br><small>Desde ${fmt(x.since)}</small></div>
+      <button class="chip" data-act="delConn" data-id="${x.connectionId}" data-v="1">ELIMINAR</button></div></div>`).join("") : `<p class="sub">Aún no tienes conexiones.</p>`)
+    + (sent.length ? `<h2>SOLICITUDES ENVIADAS</h2>` + sent.map((x) => `<div class="card"><div class="top"><div>${who(x.peer)}</div>
+      <button class="chip" data-act="delConn" data-id="${x.requestId}">CANCELAR</button></div></div>`).join("") : "");
+}
+async function loadPeers() {
+  const p = new URLSearchParams({ limit:"50" }); if (S.peerSearch) p.set("search", S.peerSearch); if (S.peerCareer) p.set("career", S.peerCareer);
+  const r = await api("GET", "/api/peers?" + p);
+  const box = $("#peers"); if (!box || !inSpace("red")) return;
+  if (!r.ok) { box.textContent = "No se pudieron cargar los compañeros."; return fail(r); }
+  box.className = "";
+  const st = { pending:`<span class="pill pen">PENDIENTE</span>`, connected:`<span class="pill on">CONECTADO</span>` };
+  box.innerHTML = r.data.data.length ? r.data.data.map((x) => `<div class="card"><div class="top"><div><h3>${esc(x.name)}</h3>
+      <small>${esc(x.career || "Sin carrera")} · semestre ${x.semester}</small></div>
+      ${st[x.connectionStatus] || `<button class="chip on" data-act="connect" data-id="${x.id}">CONECTAR</button>`}</div>
+      ${x.sharedSubjects.length ? `<small>En común: ${x.sharedSubjects.map(esc).join(", ")}</small>` : ""}</div>`).join("")
+    : `<p class="sub">No se encontraron compañeros. Solo aparecen quienes permiten mostrar su perfil.</p>`;
+}
+
 /* ---------- Clics ---------- */
 const goTop = () => { $("#app").scrollTop = 0; };
 async function keep(fn) { const y = $("#app").scrollTop; await fn(); $("#app").scrollTop = y; }
 const acts = {
   go(el) { goTop(); S.screen = el.dataset.v; render(); },
-  tab(el) { goTop(); S.tab = el.dataset.v; S.subjectId = null; render(); },
+  tab(el) { goTop(); S.tab = el.dataset.v; S.subjectId = null; S.tipId = null; S.groupId = null; render(); },
   open(el) { goTop(); S.subjectId = el.dataset.id; render(); },
   back() { goTop(); S.subjectId = null; render(); },
   status(el) { S.status = el.dataset.v; viewSubjects(); },
@@ -349,6 +528,54 @@ const acts = {
     $("#users").innerHTML = r.data.map((u) => `<p><b>${esc(u.name)}</b><br><small>${esc(u.email)} · ${u.role}</small></p>`).join("");
   },
   async logout() { const r = await api("POST", "/api/auth/logout"); if (r.ok) toast(r.data.message); endSession(); },
+  // Apuntes
+  noteTag(el) { S.noteTag = el.dataset.v; loadNotes(); },
+  async pin(el) {
+    const r = await api("PATCH", "/api/notes/" + el.dataset.id, { isPinned:!!el.dataset.v });
+    if (r.ok) { toast(el.dataset.v ? "Apunte fijado" : "Apunte desfijado"); keep(loadNotes); } else fail(r);
+  },
+  editNote(el) { S.editNote = S.editNote === el.dataset.id ? null : el.dataset.id; keep(loadNotes); },
+  async delNote(el) {
+    if (!confirm("¿Eliminar este apunte?")) return;
+    const r = await api("DELETE", "/api/notes/" + el.dataset.id);
+    if (r.ok) { toast(r.data.message); keep(loadNotes); } else fail(r);
+  },
+  // Mi espacio
+  space(el) { goTop(); S.space = el.dataset.v; S.tipId = null; S.groupId = null; viewSpace(); },
+  tipTag(el) { S.tipTag = el.dataset.v; if (!el.dataset.v) S.tipSaved = false; viewTips(); },
+  tipSaved() { S.tipSaved = !S.tipSaved; viewTips(); },
+  tip(el) { goTop(); S.tipId = el.dataset.id; viewTip(); },
+  tipBack() { S.tipId = null; viewTips(); },
+  async saveTip(el) {
+    const r = await api(el.dataset.v ? "DELETE" : "POST", `/api/tips/${el.dataset.id}/save`);
+    if (r.ok) { toast(r.data.message); keep(S.tipId ? viewTip : loadTips); } else fail(r);
+  },
+  groupMine(el) { S.groupMine = !!el.dataset.v; viewGroups(); },
+  group(el) { goTop(); S.groupId = el.dataset.id; viewGroup(); },
+  groupBack() { S.groupId = null; viewGroups(); },
+  async joinGroup() {
+    const r = await api("POST", `/api/study-groups/${S.groupId}/join`);
+    if (r.ok) { toast(r.data.message); viewGroup(); } else fail(r);
+  },
+  async leaveGroup() {
+    if (!confirm("¿Salir de este grupo?")) return;
+    const r = await api("DELETE", `/api/study-groups/${S.groupId}/leave`);
+    if (r.ok) { toast(r.data.message); S.groupId = null; viewGroups(); } else fail(r);
+  },
+  async connect(el) {
+    const m = $("#connMsg")?.value.trim();
+    const r = await api("POST", "/api/connections/requests", { targetUserId:el.dataset.id, ...(m ? { message:m } : {}) });
+    if (r.ok) { toast(r.data.message); reloadNetwork(); } else fail(r);
+  },
+  async respond(el) {
+    const r = await api("PATCH", "/api/connections/requests/" + el.dataset.id, { action:el.dataset.v });
+    if (r.ok) { toast(r.data.status === "accepted" ? "Solicitud aceptada" : "Solicitud rechazada"); reloadNetwork(); } else fail(r);
+  },
+  async delConn(el) {
+    if (el.dataset.v && !confirm("¿Eliminar esta conexión?")) return;
+    const r = await api("DELETE", "/api/connections/" + el.dataset.id);
+    if (r.ok) { toast(el.dataset.v ? r.data.message : "Solicitud cancelada"); reloadNetwork(); } else fail(r);
+  },
 };
 document.addEventListener("click", (e) => { const el = e.target.closest("[data-act]"); if (el) acts[el.dataset.act]?.(el); });
 
@@ -384,15 +611,37 @@ const forms = {
   privacy: (f) => patchSettings({ privacy:{ showProfileToPeers:f.peers === "on" } }),
   notif: (f) => patchSettings({ notifications:{ email:f.email === "on", push:f.push === "on", studyReminders:f.study === "on" } }),
   theme: (f) => patchSettings({ theme:f.theme }),
+  async newNote(f) {
+    const b = { title:f.title, content:f.content, tags:tagsOf(f.tags), ...(f.subjectId ? { subjectId:f.subjectId } : {}) };
+    const r = await api("POST", "/api/notes", b); if (r.ok) { toast(r.data.message); viewNotes(); } else fail(r);
+  },
+  async editNote(f) {
+    const r = await api("PATCH", "/api/notes/" + f.id, { title:f.title, content:f.content, subjectId:f.subjectId || null, tags:tagsOf(f.tags) });
+    if (r.ok) { toast(r.data.message); S.editNote = null; keep(loadNotes); } else fail(r);
+  },
+  async newGroup(f) {
+    const b = { name:f.name, subjectName:f.subjectName, description:f.description, maxMembers:num(f.maxMembers) };
+    if (f.schedule) b.schedule = f.schedule;
+    if (f.meetingLink) b.meetingLink = f.meetingLink;
+    const r = await api("POST", "/api/study-groups", b);
+    if (r.ok) { toast(r.data.message); S.groupId = r.data.group.id; viewGroup(); } else fail(r);
+  },
 };
 document.addEventListener("submit", (e) => { e.preventDefault(); forms[e.target.dataset.form]?.(Object.fromEntries(new FormData(e.target))); });
 
 /* ---------- Otros eventos ---------- */
+// id del buscador (= clave en S) -> función que recarga la lista
+const searches = { search:() => loadSubjects(), noteSearch:() => loadNotes(), tipSearch:() => loadTips(),
+                   groupSearch:() => loadGroups(), peerSearch:() => loadPeers(), peerCareer:() => loadPeers() };
 let searchTimer;
 document.addEventListener("input", (e) => {
-  if (e.target.id === "search") { clearTimeout(searchTimer); searchTimer = setTimeout(() => { S.search = e.target.value.trim(); loadSubjects(); }, 300); }
+  const id = e.target.id; if (!searches[id]) return;
+  clearTimeout(searchTimer); searchTimer = setTimeout(() => { S[id] = e.target.value.trim(); searches[id](); }, 300);
 });
-document.addEventListener("change", (e) => { if (e.target.id === "base") { S.base = e.target.value.trim(); store.set("base", S.base); } });
+document.addEventListener("change", (e) => {
+  if (e.target.id === "base") { S.base = e.target.value.trim(); store.set("base", S.base); }
+  if (e.target.id === "noteSubject") { S.noteSubject = e.target.value; loadNotes(); }
+});
 
 render();
 })();
