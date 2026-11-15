@@ -359,8 +359,8 @@ const styles = StyleSheet.create({
   },
 
   loginLink: {
-    fontFamily: 'BebasNeue_400Regular',
-    fontSize: 15,
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 12,
     color: '#AA0330',
   },
 

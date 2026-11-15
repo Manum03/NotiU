@@ -1,4 +1,5 @@
 
+import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Lucide } from '@react-native-vector-icons/lucide';
 
@@ -17,14 +18,43 @@ import {
   TextInput,
   Pressable,
   ScrollView,
+  Alert,
 } from 'react-native';
 
 type Props = {
   onBack: () => void;
   onRegister: () => void;
+  onLoginSuccess: () => void;
 };
 
-export default function LoginScreen({ onBack, onRegister }: Props) {
+export default function LoginScreen({
+  onBack,
+  onRegister,
+  onLoginSuccess,
+}: Props) {
+
+  // Estados de los campos
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // Inicio de sesión temporal
+  const handleLogin = () => {
+    console.log('Botón presionado');
+
+    if (!username.trim() || !email.trim() || !password.trim()) {
+      Alert.alert(
+        'Campos incompletos',
+        'Por favor, completa todos los campos.'
+      );
+      return;
+    }
+
+    // Temporalmente permite comprobar la navegación.
+    // Después conectaremos esta función con el backend.
+    onLoginSuccess();
+  };
+
   return (
     <View style={styles.container}>
 
@@ -40,7 +70,12 @@ export default function LoginScreen({ onBack, onRegister }: Props) {
             </RadialGradient>
           </Defs>
 
-          <Circle cx="325" cy="325" r="325" fill="url(#loginGlow)" />
+          <Circle
+            cx="325"
+            cy="325"
+            r="325"
+            fill="url(#loginGlow)"
+          />
         </Svg>
       </View>
 
@@ -73,11 +108,15 @@ export default function LoginScreen({ onBack, onRegister }: Props) {
 
         {/* FORMULARIO */}
         <View style={styles.form}>
+
           <Text style={styles.label}>Usuario</Text>
           <TextInput
             placeholder="Escribe tu nombre de usuario"
             placeholderTextColor="#9C777D"
             style={styles.input}
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
           />
 
           <Text style={styles.label}>Correo electrónico</Text>
@@ -87,6 +126,8 @@ export default function LoginScreen({ onBack, onRegister }: Props) {
             keyboardType="email-address"
             autoCapitalize="none"
             style={styles.input}
+            value={email}
+            onChangeText={setEmail}
           />
 
           <Text style={styles.label}>Contraseña</Text>
@@ -95,11 +136,17 @@ export default function LoginScreen({ onBack, onRegister }: Props) {
             placeholderTextColor="#9C777D"
             secureTextEntry
             style={styles.input}
+            value={password}
+            onChangeText={setPassword}
           />
+
         </View>
 
         {/* BOTÓN INICIAR SESIÓN */}
-        <Pressable style={styles.buttonWrapper}>
+        <Pressable
+          style={styles.buttonWrapper}
+          onPress={handleLogin}
+        >
           <LinearGradient
             colors={['#AA0330', '#800427', '#260A13']}
             start={{ x: 0, y: 0.5 }}
@@ -126,6 +173,7 @@ export default function LoginScreen({ onBack, onRegister }: Props) {
   );
 }
 
+// ESTILOS
 const styles = StyleSheet.create({
 
   container: {
