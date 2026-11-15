@@ -10,6 +10,7 @@ import { ListSubjectsFilters } from "../models/subject.dto";
 import { SUBJECT_STATUSES, SubjectStatus } from "../models/subject.model";
 import { UpdateSubjectDto } from "../models/subject.dto";
 import { CreateGradeDto } from "../models/grade.dto";
+import { GradesAverageFilters, UpdateGradeDto } from "../models/grade.dto";
 import { CORTES, Corte } from "../models/grade.model";
 import { ListGradesFilters } from "../models/grade.dto";
 import { CreateNoteDto, ListNotesFilters, UpdateNoteDto } from "../models/note.dto";
@@ -929,4 +930,68 @@ export const validateListTipsQuery = (query: unknown): ListTipsFilters => {
 
   fail(errors);
   return { tag, savedOnly, search, page, limit };
+};
+// ---- Edición y borrado de notas ----
+// ID de la nota (parámetro de la URL)
+export const validateGradeId = (value: unknown): string => validateUuidParam(value, "gradeId");
+
+// Mismas reglas que validateCreateGrade, pero todos los campos son opcionales.
+// Se comprueba solo lo que llega: lo que no llega no se toca.
+export const validateUpdateGrade = (body: unknown): UpdateGradeDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+  const dto: UpdateGradeDto = {};
+
+  if (b.title !== undefined) {
+    if (!isNonEmptyString(b.title) || b.title.trim().length > MAX_GRADE_TITLE) {
+      errors.push(`title no puede estar vacío (máximo ${MAX_GRADE_TITLE} caracteres)`);
+    } else dto.title = b.title.trim();
+  }
+
+  if (b.score !== undefined) {
+    const s = b.score;
+    if (typeof s !== "number" || !Number.isFinite(s) || s < 0 || s > 5 || !hasAtMostTwoDecimals(s)) {
+      errors.push("Nota fuera de rango (0.0-5.0, máximo 2 decimales)");
+    } else dto.score = s;
+  }
+
+  if (b.weight !== undefined) {
+    const w = b.weight;
+    if (typeof w !== "number" || !Number.isFinite(w) || w < 1 || w > 100 || !hasAtMostTwoDecimals(w)) {
+      errors.push("Porcentaje fuera de rango (1-100, máximo 2 decimales)");
+    } else dto.weight = w;
+  }
+
+  if (b.corte !== undefined) {
+    if (b.corte === null) {
+      dto.corte = null; // null quita el corte de la nota
+    } else if (typeof b.corte !== "number" || !CORTES.includes(b.corte as Corte)) {
+      errors.push(`corte debe ser uno de: ${CORTES.join(", ")} (o null para quitarlo)`);
+    } else dto.corte = b.corte as Corte;
+  }
+
+  if (b.date !== undefined) {
+    if (typeof b.date !== "string" || !isValidIsoDate(b.date.trim())) {
+      errors.push("date debe ser una fecha ISO 8601 válida, por ejemplo 2026-03-15");
+    } else dto.date = b.date.trim();
+  }
+
+  fail(errors);
+
+  // Regla: al menos un campo (los desconocidos como id, subjectId o createdAt no cuentan)
+  if (Object.keys(dto).length === 0) {
+    throw new HttpError(400, "Datos inválidos", [
+      "Debes enviar al menos un campo: title, score, weight, corte o date",
+    ]);
+  }
+
+  return dto;
+};
+
+// ---- Promedio general: query params ----
+export const validateAverageQuery = (query: unknown): GradesAverageFilters => {
+  const q = (query ?? {}) as Record<string, unknown>;
+  // Solo importa "semester": se reutiliza la validación del consolidado sin los demás filtros
+  const { semester } = validateListGradesQuery({ semester: q.semester });
+  return { semester };
 };

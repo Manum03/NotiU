@@ -2,13 +2,19 @@ import { randomUUID } from "node:crypto";
 import {
   CreateGradeDto,
   CreateGradeResponseDto,
+  DeleteGradeResponseDto,
   GradeItemDto,
   GradeListItemDto,
+  GradesAverageFilters,
+  GradesAverageResponseDto,
   ListGradesFilters,
   ListGradesResponseDto,
   ProgressStatus,
+  SubjectAverageDto,
   SubjectGradesResponseDto,
   SubjectProgressDto,
+  UpdateGradeDto,
+  UpdateGradeResponseDto,
 } from "../models/grade.dto";
 import { Grade, MIN_PASSING_GRADE } from "../models/grade.model";
 import { GradesSummaryDto } from "../models/subject.dto";
@@ -110,6 +116,19 @@ const buildProgress = (subjectId: string, subjectGrades: Grade[]): SubjectProgre
   };
 };
 
+/**
+ * Busca una nota SOLO entre las materias del usuario. Si la nota no existe o su
+ * materia es de otro usuario, el resultado es el MISMO 404: así nadie puede
+ * descubrir qué IDs existen (defensa contra IDOR)
+ */
+const findOwnedGrade = (ownedSubjects: Subject[], gradeId: string): Grade => {
+  const grade = grades.find((g) => g.id === gradeId);
+  if (!grade || !ownedSubjects.some((s) => s.id === grade.subjectId)) {
+    throw new HttpError(404, "Calificación no encontrada");
+  }
+  return grade;
+};
+
 // Este service NO importa a subject.service (evita un import circular):
 // recibe la materia ya validada, y el controller se encarga de comprobar la propiedad
 export const gradeService = {
@@ -200,5 +219,104 @@ export const gradeService = {
     const before = grades.length;
     grades = grades.filter((g) => g.subjectId !== subjectId);
     return before - grades.length;
+  },
+
+  // Recibe SUS materias (el controller las obtiene) para comprobar la propiedad de la nota
+  updateGrade(ownedSubjects: Subject[], gradeId: string, dto: UpdateGradeDto): UpdateGradeResponseDto {
+    const grade = findOwnedGrade(ownedSubjects, gradeId); // 404 si no existe o no es suya
+
+    if (dto.weight !== undefined) {
+      // Porcentaje que ocupan las OTRAS notas de la materia (se excluye la que se edita)
+      const othersHundredths = gradesOf(grade.subjectId)
+        .filter((g) => g.id !== grade.id)
+        .reduce((sum, g) => sum + toHundredths(g.weight), 0);
+
+      if (othersHundredths + toHundredths(dto.weight) > TOTAL_HUNDREDTHS) {
+        const available = (TOTAL_HUNDREDTHS - othersHundredths) / 100;
+        throw new HttpError(400, "Datos inválidos", [
+          `La suma de porcentajes supera el 100%: las demás notas suman ${othersHundredths / 100}% y solo quedan ${available}% disponibles`,
+        ]);
+      }
+    }
+
+    // Todas las reglas pasaron: recién ahora se modifica (todo o nada)
+    if (dto.title !== undefined) grade.title = dto.title;
+    if (dto.score !== undefined) grade.score = dto.score;
+    if (dto.weight !== undefined) grade.weight = dto.weight;
+    if (dto.corte !== undefined) {
+      if (dto.corte === null) delete grade.corte; // null quita el corte
+      else grade.corte = dto.corte;
+    }
+    if (dto.date !== undefined) grade.date = dto.date;
+
+    return { message: "Calificación actualizada", grade: { ...grade } };
+  },
+
+  deleteGrade(ownedSubjects: Subject[], gradeId: string): DeleteGradeResponseDto {
+    const grade = findOwnedGrade(ownedSubjects, gradeId); // 404 si no existe o no es suya
+
+    grades = grades.filter((g) => g.id !== grade.id);
+
+    return {
+      message: "Calificación eliminada correctamente",
+      deletedId: grade.id,
+      subjectId: grade.subjectId,
+      // El promedio se calcula al consultar, así que ya refleja el borrado
+      gradesSummary: summarize(gradesOf(grade.subjectId)),
+    };
+  },
+
+  // Promedio general ponderado por créditos (PGA) de las materias del usuario.
+  // Solo cuentan las materias que ya tienen al menos una nota
+  getAverage(ownedSubjects: Subject[], filters: GradesAverageFilters): GradesAverageResponseDto {
+    const inScope = ownedSubjects.filter(
+      (s) => filters.semester === undefined || s.semester === filters.semester,
+    );
+
+    const bySubject: SubjectAverageDto[] = [];
+    let approvedSubjects = 0;
+    let atRiskSubjects = 0;
+    let ungradedSubjects = 0;
+    let totalCredits = 0;
+    let weightedHundredths = 0; // Σ promedio (en centésimas) × créditos
+
+    for (const subject of inScope) {
+      const subjectGrades = gradesOf(subject.id);
+      if (subjectGrades.length === 0) {
+        ungradedSubjects++; // sin notas no hay promedio: no entra al PGA
+        continue;
+      }
+
+      const progress = buildProgress(subject.id, subjectGrades);
+      const approved = progress.status === "aprobada" || progress.status === "aprobacion_asegurada";
+      if (approved) approvedSubjects++;
+      else if (progress.currentAverage < MIN_PASSING_GRADE) atRiskSubjects++;
+
+      // El PGA se calcula con los promedios REDONDEADOS que ve el usuario,
+      // así el resultado se puede comprobar a mano con la lista
+      weightedHundredths += Math.round(progress.currentAverage * 100) * subject.credits;
+      totalCredits += subject.credits;
+
+      bySubject.push({
+        subjectId: subject.id,
+        name: subject.name,
+        average: progress.currentAverage,
+        credits: subject.credits,
+        semester: subject.semester,
+        status: progress.status,
+      });
+    }
+
+    bySubject.sort((a, b) => a.semester - b.semester || a.name.localeCompare(b.name, "es"));
+
+    return {
+      // Sin materias con notas no hay promedio (división por cero): se devuelve null
+      pga: totalCredits === 0 ? null : Math.round(weightedHundredths / totalCredits) / 100,
+      totalCredits,
+      approvedSubjects,
+      atRiskSubjects,
+      ungradedSubjects,
+      bySubject,
+    };
   },
 };
