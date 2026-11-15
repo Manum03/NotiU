@@ -19,7 +19,12 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+
+// Servicios para conectar con el backend y guardar la sesión.
+import { apiRequest } from '../../../services/api/api';
+import { saveSession, AuthSession } from '../../../services/storage/authStorage';
 
 type Props = {
   onBack: () => void;
@@ -33,15 +38,18 @@ export default function LoginScreen({
   onLoginSuccess,
 }: Props) {
 
-  // Estados de los campos
+  // Estados de los campos del formulario.
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Inicio de sesión temporal
-  const handleLogin = () => {
-    console.log('Botón presionado');
+  // Estado para evitar varios intentos simultáneos.
+  const [loading, setLoading] = useState(false);
 
+  // Controla el inicio de sesión.
+  const handleLogin = async () => {
+
+    // Validar que todos los campos estén completos.
     if (!username.trim() || !email.trim() || !password.trim()) {
       Alert.alert(
         'Campos incompletos',
@@ -50,9 +58,46 @@ export default function LoginScreen({
       return;
     }
 
-    // Temporalmente permite comprobar la navegación.
-    // Después conectaremos esta función con el backend.
-    onLoginSuccess();
+    try {
+      setLoading(true);
+
+      // Enviar las credenciales al backend.
+      // IMPORTANTE: este ejemplo supone que el endpoint es POST /auth/login
+      // y que recibe username, email y password.
+      const response = await apiRequest<AuthSession>(
+        '/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            username: username.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+          }),
+        }
+      );
+
+      // Comprobar que el backend haya devuelto una sesión válida.
+      if (!response?.token || !response?.expiresAt || !response?.user) {
+        throw new Error('El servidor no devolvió una sesión válida.');
+      }
+
+      // Guardar el token y los datos del usuario.
+      await saveSession(response);
+
+      // Continuar hacia el Home únicamente después de guardar la sesión.
+      onLoginSuccess();
+
+    } catch (error: any) {
+      console.error('Error al iniciar sesión:', error);
+
+      Alert.alert(
+        'No se pudo iniciar sesión',
+        error?.message || 'Ocurrió un problema al conectar con el servidor.'
+      );
+
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,7 +124,7 @@ export default function LoginScreen({
         </Svg>
       </View>
 
-      {/* BOTÓN VOLVER CIRCULAR */}
+      {/* BOTÓN VOLVER */}
       <Pressable onPress={onBack} style={styles.backButton}>
         <Lucide name="arrow-left" size={21} color="#E9DDD3" />
       </Pressable>
@@ -117,6 +162,7 @@ export default function LoginScreen({
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
+            editable={!loading}
           />
 
           <Text style={styles.label}>Correo electrónico</Text>
@@ -125,9 +171,11 @@ export default function LoginScreen({
             placeholderTextColor="#9C777D"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
             style={styles.input}
             value={email}
             onChangeText={setEmail}
+            editable={!loading}
           />
 
           <Text style={styles.label}>Contraseña</Text>
@@ -138,14 +186,19 @@ export default function LoginScreen({
             style={styles.input}
             value={password}
             onChangeText={setPassword}
+            editable={!loading}
           />
 
         </View>
 
         {/* BOTÓN INICIAR SESIÓN */}
         <Pressable
-          style={styles.buttonWrapper}
+          style={[
+            styles.buttonWrapper,
+            loading && styles.buttonDisabled,
+          ]}
           onPress={handleLogin}
+          disabled={loading}
         >
           <LinearGradient
             colors={['#AA0330', '#800427', '#260A13']}
@@ -153,7 +206,11 @@ export default function LoginScreen({
             end={{ x: 1, y: 0.5 }}
             style={styles.button}
           >
-            <Text style={styles.buttonText}>iniciar sesión</Text>
+            {loading ? (
+              <ActivityIndicator color="#E9DDD3" />
+            ) : (
+              <Text style={styles.buttonText}>iniciar sesión</Text>
+            )}
           </LinearGradient>
         </Pressable>
 
@@ -163,7 +220,7 @@ export default function LoginScreen({
             ¿Aún no tienes una cuenta?
           </Text>
 
-          <Pressable onPress={onRegister}>
+          <Pressable onPress={onRegister} disabled={loading}>
             <Text style={styles.link}>Crear cuenta</Text>
           </Pressable>
         </View>
@@ -274,6 +331,10 @@ const styles = StyleSheet.create({
     marginTop: 30,
     borderRadius: 13,
     overflow: 'hidden',
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   button: {
