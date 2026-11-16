@@ -1,4 +1,12 @@
-import { ScheduleBlock, Subject, SubjectStatus } from "./subject.model";
+
+import {
+  ScheduleBlock,
+  Subject,
+  SubjectStatus,
+  SubjectPriority,
+  SubjectReminder,
+  ActivityType,
+} from "./subject.model";
 
 export interface CreateSubjectDto {
   name: string;
@@ -8,20 +16,31 @@ export interface CreateSubjectDto {
   teacher?: string;
   color?: string;
   schedule?: ScheduleBlock[];
+  status?: SubjectStatus;
+  priority?: SubjectPriority;
+  description?: string;
+  dueDate?: string | null;
+  dueTime?: string | null;
+  activityType?: ActivityType | null;
+  reminder?: SubjectReminder;
+  notes?: string;
+  progress?: number;
 }
 
-// Lo que se devuelve al cliente: nunca incluye el userId interno
-export type SubjectResponseDto = Omit<Subject, "userId" | "createdAt">;
+export type SubjectResponseDto = Omit<
+  Subject,
+  "userId" | "createdAt"
+>;
 
 export interface CreateSubjectResponseDto {
   message: string;
   subject: SubjectResponseDto;
 }
 
-// ---- Listado (GET /api/subjects) ----
 export interface ListSubjectsFilters {
   semester?: number;
   status?: SubjectStatus;
+  priority?: SubjectPriority;
   search?: string;
 }
 
@@ -32,16 +51,22 @@ export interface SubjectListItemDto {
   credits: number;
   semester: number;
   status: SubjectStatus;
+  priority: SubjectPriority;
   teacher: string;
   color: string;
   currentAverage: number;
+  progress: number;
+  dueDate: string | null;
+  dueTime: string | null;
+  activityType: ActivityType | null;
+  reminder: SubjectReminder;
 }
 
 export interface ListSubjectsResponseDto {
   data: SubjectListItemDto[];
   total: number;
 }
-// ---- Detalle (GET /api/subjects/:subjectId) ----
+
 export interface GradesSummaryDto {
   count: number;
   totalWeight: number;
@@ -52,8 +77,7 @@ export interface SubjectDetailDto extends SubjectResponseDto {
   room: string;
   gradesSummary: GradesSummaryDto;
 }
-// ---- Actualización (PATCH /api/subjects/:subjectId) ----
-// Todo es opcional: PATCH = actualización parcial
+
 export interface UpdateSubjectDto {
   name?: string;
   code?: string;
@@ -62,18 +86,27 @@ export interface UpdateSubjectDto {
   teacher?: string;
   color?: string;
   schedule?: ScheduleBlock[];
+  status?: SubjectStatus;
+  priority?: SubjectPriority;
+  description?: string;
+  dueDate?: string | null;
+  dueTime?: string | null;
+  activityType?: ActivityType | null;
+  reminder?: SubjectReminder;
+  notes?: string;
+  progress?: number;
 }
 
 export interface UpdateSubjectResponseDto {
   message: string;
   subject: SubjectResponseDto;
 }
-// ---- Horario (GET /api/subjects/:subjectId/schedule) ----
+
 export interface ScheduleSessionDto {
   day: ScheduleBlock["day"];
   startTime: string;
   endTime: string;
-  room: string; // siempre presente: "" si el bloque no tiene sala
+  room: string;
 }
 
 export interface SubjectScheduleDto {

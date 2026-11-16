@@ -415,12 +415,10 @@ export default function HomeScreen() {
     
     return (
       <View key={task.id} style={styles.activityRow}>
-        //indicador del estado de la acti
         <View
           style={[styles.activityBullet,{backgroundColor:task.status === 'en_curso'? COLORS.brightWine: '#9C484F',},]}
         />
 
-        //info principal de la acti
         <View style={styles.activityInfo}>
           <Text style={styles.activitySubject}>{task.title}</Text>
 
@@ -429,7 +427,6 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        //indica si esta pendiente/en curso
         <View
           style={[styles.statusBadge,task.status === 'en_curso'? styles.inProgressBadge: styles.pendingBadge,]}
         >
@@ -475,12 +472,10 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      //ajusta la pantalla cuando aparece el teclado
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        //scrollview para que se pueda deslizar la pantalla
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -495,16 +490,13 @@ export default function HomeScreen() {
             />
           }
         >
-          //encabezado
           <View style={styles.header}>
-            //logo
             <Image
               source={require('../../../assets/images/logonotiU.png')}
               style={styles.mascot}
               resizeMode="contain"
             />
 
-            //saludos y datos del usuario
             <View style={styles.greetingContainer}>
               <Text style={styles.date}>
                 {new Date()
@@ -524,7 +516,6 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            //iconos del encabezado
             <View style={styles.headerIcons}>
               <Pressable
                 style={styles.iconButton}
@@ -543,7 +534,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-            //mensaje de error del back
 
           {error !== '' ? (
             <View style={styles.errorCard}>
@@ -557,7 +547,6 @@ export default function HomeScreen() {
                 <Text style={styles.errorDescription}>{error}</Text>
               </View>
 
-              //permite volver a mandar la soli
               <Pressable onPress={() => loadTasks()}>
                 <Lucide
                   name="refresh-cw"
@@ -568,10 +557,8 @@ export default function HomeScreen() {
             </View>
           ) : null}
 
-          //resumen de actividades
 
           <View style={styles.summaryContainer}>
-            //total de acti pendientes/en curso
 
             <View style={styles.summaryCard}>
               <View style={styles.summaryIcon}>
@@ -590,7 +577,7 @@ export default function HomeScreen() {
               <Lucide name="arrow-up-right" size={20} color={COLORS.soft} />
             </View>
 
-            {/* Total de próximas entregas. */}
+            {/* Total de proximas entregas. */}
             <View style={styles.summaryCard}>
               <View style={styles.summaryIcon}>
                 <Lucide
@@ -727,7 +714,6 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            //mensaje cuando no hay acti proximas
             {upcomingTasks.length === 0 ? (
               <View style={styles.emptyState}>
                 <Lucide
@@ -743,7 +729,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-              // Muestra las tres actividades mas proximas
               upcomingTasks.slice(0, 3).map((task, index) => (
                 <View key={task.id}>
                   {renderTaskRow(task, true)}
@@ -756,7 +741,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-            //tareas del dia
 
           <View style={styles.planningCard}>
             <View style={styles.planningHeader}>
@@ -810,7 +794,6 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
-            //dias de la semana horizontal
             <View style={styles.weekSelector}>
               {weekDays.map(date => {
                 const isSelected = formatDate(date) === formatDate(selectedDate);
@@ -879,7 +862,6 @@ export default function HomeScreen() {
                       </Text>
                     </View>
 
-                    //permite completar la acti desde la seccion de planificacion
                     <Pressable
                       onPress={() => completeTask(task.id)}
                       style={styles.dayTaskComplete}
@@ -896,8 +878,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-              //actividades realizadas
-
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>REALIZADAS</Text>
@@ -907,7 +887,6 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            //mensaje cuando no hay actividades realizadas
             {completedTasks.length === 0 ? (
               <View style={styles.emptyState}>
                 <Lucide
@@ -923,7 +902,6 @@ export default function HomeScreen() {
                 </Text>
               </View>
             ) : (
-              // muestra hasta actividades completadas
               completedTasks.slice(0, 5).map(task => (
                 <View key={task.id} style={styles.completedTaskRow}>
                   <Lucide
@@ -944,7 +922,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-            //progreso
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -971,7 +948,6 @@ export default function HomeScreen() {
                     fill="none"
                   />
 
-                  //circulo que representa el prograso
                   <Circle
                     cx="75"
                     cy="75"
@@ -1014,7 +990,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-            //conexiones
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -1027,7 +1002,6 @@ export default function HomeScreen() {
 
             <View style={styles.connectionGrid}>
               
-              //plataformas disponibles
               {[
                 { name: 'Correo', icon: 'mail' as const },
                 { name: 'Classroom', icon: 'graduation-cap' as const },
@@ -1050,8 +1024,7 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
               ))}
-
-              //acceso para add nuevas conexiones
+s
               <Pressable
                 style={[styles.connectionItem, styles.addConnectionItem]}
                 onPress={() =>Alert.alert('Añadir conexión','Aquí podrás agregar nuevas plataformas próximamente.')}
@@ -1136,7 +1109,6 @@ export default function HomeScreen() {
               <View style={styles.formField}>
                 <Text style={styles.formLabel}>MES</Text>
 
-              //boton que cierra o abre lista de meses
                 <Pressable
                   style={styles.modalMonthDropdownButton}
                   onPress={() =>setModalMonthMenuVisible(current => !current)
@@ -1192,8 +1164,6 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
-
-
 
               <View style={styles.formField}>
                 <Text style={styles.formLabel}>
@@ -1461,9 +1431,7 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
 
-  // ------------------------------------------------
-  // TARJETAS GENERALES
-  // ------------------------------------------------
+//tarjetas generales
 
   sectionCard: {
     backgroundColor: COLORS.card,
@@ -1489,9 +1457,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
 
-  // ------------------------------------------------
-  // BOTÓN ELEGIR FECHA
-  // ------------------------------------------------
+//boton elegir fecha
 
   datePickerButton: {
     flexDirection: 'row',
@@ -1512,12 +1478,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ------------------------------------------------
-  // ENCABEZADO DEL CALENDARIO PRINCIPAL
-  // ------------------------------------------------
-
-  // El mes y el año se muestran directamente.
-  // No se necesita un contenedor ni estilos para un menú.
+//encabezado de calendario principal
   monthHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1553,9 +1514,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  // ------------------------------------------------
-  // DÍAS DE LA SEMANA Y CUADRÍCULA
-  // ------------------------------------------------
+//dias de la semana del calendario
 
   calendarWeekDays: {
     flexDirection: 'row',
@@ -1614,7 +1573,7 @@ const styles = StyleSheet.create({
     color: COLORS.soft,
   },
 
-  // Punto que indica que existe una actividad en ese día.
+  // punto que indica que hay actividades en ese dia
   activityDot: {
     position: 'absolute',
     bottom: 1,
@@ -1628,7 +1587,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
 
-  // Pie del calendario.
+ //pie de calendario con leyenda y boton hoy
   calendarFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1672,9 +1631,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
 
-  // ------------------------------------------------
-  // CONTADORES
-  // ------------------------------------------------
+//contadores
 
   countBadge: {
     minWidth: 38,
@@ -1694,9 +1651,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
-  // ------------------------------------------------
-  // FILAS DE ACTIVIDADES
-  // ------------------------------------------------
+//filas de actividades
 
   activityRow: {
     flexDirection: 'row',
@@ -1761,9 +1716,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.darkWine,
   },
 
-  // ------------------------------------------------
-  // ESTADOS VACÍOS
-  // ------------------------------------------------
+//estados vacios
 
   emptyState: {
     alignItems: 'center',
@@ -1789,9 +1742,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // ------------------------------------------------
-  // TARJETA TU PLANIFICACIÓN
-  // ------------------------------------------------
+//caja de tu planificacion
 
   planningCard: {
     backgroundColor: '#2D0A17',
@@ -1863,9 +1814,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
-  // ------------------------------------------------
-  // NAVEGACIÓN SEMANAL
-  // ------------------------------------------------
+//navegacion de semanas
 
   weekNavigation: {
     flexDirection: 'row',
@@ -1890,9 +1839,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
-  // ------------------------------------------------
-  // SELECTOR DE DÍAS DE LA SEMANA
-  // ------------------------------------------------
+//selector de dias de la semana
 
   weekSelector: {
     flexDirection: 'row',
@@ -1942,9 +1889,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
 
-  // ------------------------------------------------
-  // ACTIVIDADES DEL DÍA
-  // ------------------------------------------------
+  //actividades del dia
 
   selectedDayTasks: {
     marginTop: 20,
@@ -1990,9 +1935,7 @@ const styles = StyleSheet.create({
     padding: 5,
   },
 
-  // ------------------------------------------------
-  // ACTIVIDADES COMPLETADAS
-  // ------------------------------------------------
+//actividades realizadas
 
   completedTaskRow: {
     flexDirection: 'row',
@@ -2020,9 +1963,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  // ------------------------------------------------
-  // PROGRESO
-  // ------------------------------------------------
+//progreso
 
   progressContent: {
     flexDirection: 'row',
@@ -2095,9 +2036,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // ------------------------------------------------
-  // CONEXIONES
-  // ------------------------------------------------
+//conexiones
 
   connectionDescription: {
     fontFamily: 'PlayfairDisplay_400Regular',
@@ -2165,9 +2104,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // ------------------------------------------------
-  // MODAL PARA ELEGIR FECHA
-  // ------------------------------------------------
 
   modalOverlay: {
     flex: 1,
@@ -2203,7 +2139,6 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
 
-  // Encabezado del modal.
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2242,9 +2177,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  // ------------------------------------------------
-  // CAMPOS DEL FORMULARIO
-  // ------------------------------------------------
+//formulario de fecha
 
   formField: {
     marginBottom: 17,
@@ -2277,11 +2210,8 @@ const styles = StyleSheet.create({
     marginTop: 7,
   },
 
-  // ------------------------------------------------
-  // DESPLEGABLE DE MESES DEL MODAL
-  // ------------------------------------------------
 
-  // Botón que muestra el mes seleccionado y abre la lista.
+  // boton que muestra el mes y abre la lista
   modalMonthDropdownButton: {
     height: 51,
     flexDirection: 'row',
@@ -2303,8 +2233,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
 
-  // Contenedor de la lista de meses.
-  // Limita la altura para que no ocupe todo el modal.
+  // contenedor de la lista de meses
   modalMonthList: {
     backgroundColor: COLORS.darkWine,
     borderWidth: 1,
@@ -2316,7 +2245,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Scroll interno para poder recorrer los doce meses.
+  // scroll interno para poder recorrer los doce meses
   modalMonthScroll: {
     maxHeight: 175,
     flexGrow: 0,
@@ -2345,9 +2274,7 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
-  // ------------------------------------------------
-  // BOTONES DEL MODAL
-  // ------------------------------------------------
+//botones de cancelar y confirmar
 
   modalButtons: {
     flexDirection: 'row',
@@ -2390,10 +2317,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // ------------------------------------------------
-  // BARRA DE NAVEGACIÓN INFERIOR
-  // ------------------------------------------------
-
+// barra de navegación inferior
   bottomBar: {
     position: 'absolute',
     bottom: 19,
@@ -2410,7 +2334,7 @@ const styles = StyleSheet.create({
     borderColor: '#9A1640',
   },
 
-  // Opciones no seleccionadas.
+  // opciones no seleccionadas
   navItem: {
     width: 48,
     height: 48,
@@ -2418,7 +2342,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Opción correspondiente a la pantalla actual.
+  // opcion correspondiente a la pantalla actual
   activeNavItem: {
     width: 49,
     height: 49,
