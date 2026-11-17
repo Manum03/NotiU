@@ -6,12 +6,21 @@ import WelcomeScreen from '../features/auth/screens/WelcomeScreen';
 import LoginScreen from '../features/auth/screens/LoginScreen';
 import RegisterScreen from '../features/auth/screens/RegisterScreen';
 import HomeScreen from '../features/home/screens/HomeScreen';
+import SubjectsScreen from '../features/subjects/screens/SubjectsScreen';
+import SubjectDetailScreen from '../features/subjects/screens/SubjectDetailScreen';
+import AddSubjectScreen from '../features/subjects/screens/AddSubjectScreen';
+import AddTaskScreen from '../features/tasks/screens/AddTaskScreen';
+import type { Subject } from '../features/subjects/types';
 
 export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
   Home: undefined;
+  Subjects: undefined;
+  SubjectDetail: { subject: Subject };
+  AddSubject: undefined;
+  AddTask: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -26,10 +35,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Welcome">
           {({ navigation }) => (
             <WelcomeScreen
-              onLogin={() => {
-                console.log('Se presionó iniciar sesión');
-                navigation.navigate('Login');
-            }}
+              onLogin={() => navigation.navigate('Login')}
               onRegister={() => navigation.navigate('Register')}
             />
           )}
@@ -55,6 +61,10 @@ export default function AppNavigator() {
         </Stack.Screen>
 
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Subjects" component={SubjectsScreen} />
+        <Stack.Screen name="SubjectDetail" component={SubjectDetailScreen} />
+        <Stack.Screen name="AddSubject" component={AddSubjectScreen} />
+        <Stack.Screen name="AddTask" component={AddTaskScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

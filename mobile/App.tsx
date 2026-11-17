@@ -1,3 +1,4 @@
+
 import { StatusBar } from 'expo-status-bar';
 
 import {
@@ -6,15 +7,19 @@ import {
 } from '@expo-google-fonts/bebas-neue';
 
 import {
-  PlayfairDisplay_400Regular,
-} from '@expo-google-fonts/playfair-display';
+  Roboto_400Regular,
+  Roboto_500Medium,
+  Roboto_700Bold,
+} from '@expo-google-fonts/roboto';
 
 import AppNavigator from './src/navigation/AppNavigator';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
     BebasNeue_400Regular,
-    PlayfairDisplay_400Regular,
+    Roboto_400Regular,
+    Roboto_500Medium,
+    Roboto_700Bold,
   });
 
   if (!fontsLoaded) {

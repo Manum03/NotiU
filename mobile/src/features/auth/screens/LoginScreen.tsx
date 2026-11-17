@@ -38,10 +38,8 @@ export default function LoginScreen({
   onLoginSuccess,
 }: Props) {
 
-  // Estados de los campos del formulario.
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const [email, setEmail] = useState('');
+const [password, setPassword] = useState('');
 
   // Estado para evitar varios intentos simultáneos.
   const [loading, setLoading] = useState(false);
@@ -50,13 +48,11 @@ export default function LoginScreen({
   const handleLogin = async () => {
 
     // Validar que todos los campos estén completos.
-    if (!username.trim() || !email.trim() || !password.trim()) {
-      Alert.alert(
-        'Campos incompletos',
-        'Por favor, completa todos los campos.'
-      );
-      return;
-    }
+      if (!email.trim() || !password.trim()) {
+        Alert.alert('Campos incompletos', 'Por favor, completa tu correo electrónico y contraseña.'
+            );
+        return;
+        }
 
     try {
       setLoading(true);
@@ -64,17 +60,13 @@ export default function LoginScreen({
       // Enviar las credenciales al backend.
       // IMPORTANTE: este ejemplo supone que el endpoint es POST /auth/login
       // y que recibe username, email y password.
-      const response = await apiRequest<AuthSession>(
-        '/auth/login',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            username: username.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-          }),
-        }
-      );
+        const response = await apiRequest<AuthSession>(
+          '/auth/login',
+             {
+              method: 'POST',
+              body: JSON.stringify({email: email.trim().toLowerCase(), password,}),
+              }
+              );
 
       // Comprobar que el backend haya devuelto una sesión válida.
       if (!response?.token || !response?.expiresAt || !response?.user) {
@@ -153,17 +145,6 @@ export default function LoginScreen({
 
         {/* FORMULARIO */}
         <View style={styles.form}>
-
-          <Text style={styles.label}>Usuario</Text>
-          <TextInput
-            placeholder="Escribe tu nombre de usuario"
-            placeholderTextColor="#9C777D"
-            style={styles.input}
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            editable={!loading}
-          />
 
           <Text style={styles.label}>Correo electrónico</Text>
           <TextInput

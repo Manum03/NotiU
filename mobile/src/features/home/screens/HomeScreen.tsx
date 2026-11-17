@@ -1,3 +1,7 @@
+import HeaderActions from '../../../components/HeaderActions';
+import BottomNavigation from '../components/BottomNavigation';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../../navigation/AppNavigator';
 //pantalla inicial
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -8,7 +12,19 @@ import { Lucide } from '@react-native-vector-icons/lucide';
 import Svg, { Circle } from 'react-native-svg';
 
 import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text,TextInput, View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
 import { apiRequest } from '../../../services/api/api';
@@ -137,15 +153,22 @@ function getMotivationalMessage(): string {
 
 // obtiene nombre de usuario para mostrar en el encabezado
 function getUserName(user: UserInfo | null): string {
-  
+
   if (!user) return 'ESTUDIANTE';
   return (
-    user.name || user.firstName || user.username || user.email?.split('@')[0] || 'ESTUDIANTE').toUpperCase();
+    user.name ||
+    user.firstName ||
+    user.username ||
+    user.email?.split('@')[0] ||
+    'ESTUDIANTE'
+  ).toUpperCase();
 }
 
 
 
-export default function HomeScreen() {
+type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+
+export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   // acti y datos de usuario
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -178,7 +201,8 @@ export default function HomeScreen() {
   const [formDay, setFormDay] = useState(String(new Date().getDate()));
 
   // mensaje motivacional durante sesion
-  const [motivationalMessage] = useState(getMotivationalMessage());
+  // (se pasa la funcion sin parentesis para que se ejecute una sola vez)
+  const [motivationalMessage] = useState(getMotivationalMessage);
 
   //conexion backend
 
@@ -193,20 +217,25 @@ export default function HomeScreen() {
       const session = await getSession();
 
       if (!session?.token) {
-        throw new Error(
-          'No se encontró una sesión activa. Inicia sesión nuevamente.'
-        );
+        throw new Error('No se encontró una sesión activa. Inicia sesión nuevamente.');
       }
 
       // solicita acti al back
-      const response = await apiRequest<TasksResponse>('/tasks', {method: 'GET', token: session.token,});
+      const response = await apiRequest<TasksResponse>('/tasks', {
+        method: 'GET',
+        token: session.token,
+      });
 
       // actualiza las acti y la info del usuario
       setTasks(response.tasks ?? []);
       setUser((session.user ?? null) as UserInfo | null);
     } catch (err) {
       // muestra msj si ocurre un problema con la soli
-      setError(err instanceof Error ? err.message: 'No se pudieron cargar las actividades.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'No se pudieron cargar las actividades.'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -214,7 +243,9 @@ export default function HomeScreen() {
   }, []);
 
   // carga actis cuando se abre la pantalla
-  useEffect(() => {loadTasks();}, [loadTasks]);
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
 
   // refresca la pantalla deslizando hacia abajo
   const onRefresh = useCallback(() => {
@@ -227,13 +258,20 @@ export default function HomeScreen() {
   const today = formatDate(new Date());
 
   // acti que aun no estan realizadas
-  const unfinishedTasks = useMemo(() => tasks.filter(task => task.status !== 'realizada'),[tasks]);
+  const unfinishedTasks = useMemo(
+    () => tasks.filter(task => task.status !== 'realizada'),
+    [tasks]
+  );
 
   // cantidad de acti pendientes/en curso
   const pendingCount = unfinishedTasks.length;
 
   // prox acti ordenadas por fecha y hora
-  const upcomingTasks = useMemo(() => {return unfinishedTasks.filter(task => task.dueDate && task.dueDate >= today).sort((a, b) => {const dateComparison = (a.dueDate ?? '').localeCompare(b.dueDate ?? '');
+  const upcomingTasks = useMemo(() => {
+    return unfinishedTasks
+      .filter(task => task.dueDate && task.dueDate >= today)
+      .sort((a, b) => {
+        const dateComparison = (a.dueDate ?? '').localeCompare(b.dueDate ?? '');
 
         if (dateComparison !== 0) return dateComparison;
 
@@ -242,9 +280,15 @@ export default function HomeScreen() {
   }, [unfinishedTasks, today]);
 
   // actis realizadas ordenadas desde la mas reciente
-  const completedTasks = useMemo(() =>tasks.filter(task => task.status === 'realizada').sort((a, b) =>(b.completedAt ?? '').localeCompare(a.completedAt ?? '')),[tasks]);
+  const completedTasks = useMemo(
+    () =>
+      tasks
+        .filter(task => task.status === 'realizada')
+        .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '')),
+    [tasks]
+  );
 
-  // cantidad de actis completadas/totales 
+  // cantidad de actis completadas/totales
   const completedCount = completedTasks.length;
   const totalCount = tasks.length;
 
@@ -255,7 +299,17 @@ export default function HomeScreen() {
       : 0;
 
   // actis pendientes segun el dia seleccionado
-  const selectedDayTasks = useMemo(() =>tasks.filter(task =>task.dueDate === formatDate(selectedDate) &&task.status !== 'realizada').sort((a, b) =>(a.dueTime ?? '').localeCompare(b.dueTime ?? '')),[tasks, selectedDate]);
+  const selectedDayTasks = useMemo(
+    () =>
+      tasks
+        .filter(
+          task =>
+            task.dueDate === formatDate(selectedDate) &&
+            task.status !== 'realizada'
+        )
+        .sort((a, b) => (a.dueTime ?? '').localeCompare(b.dueTime ?? '')),
+    [tasks, selectedDate]
+  );
 
 //calendario dinamico
 
@@ -272,11 +326,21 @@ export default function HomeScreen() {
 
     const totalCells = Math.ceil((offset + daysInMonth) / 7) * 7;
 
-    return Array.from({ length: totalCells }, (_, index) => {const date = new Date(year, month, index - offset + 1);
-        return {date, dateString: formatDate(date), isCurrentMonth: date.getMonth() === month,};});}, [visibleMonth]);
+    return Array.from({ length: totalCells }, (_, index) => {
+      const date = new Date(year, month, index - offset + 1);
+      return {
+        date,
+        dateString: formatDate(date),
+        isCurrentMonth: date.getMonth() === month,
+      };
+    });
+  }, [visibleMonth]);
 
   // genera los 7 dias de la semana para la planificacion
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),[weekStart]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
+    [weekStart]
+  );
 
   // calcula cuantos del dias tiene el mes elegido para el formulario
   // valida lo que es mes de febrero y los años bisiestos
@@ -288,12 +352,18 @@ export default function HomeScreen() {
     return new Date(year, formMonth + 1, 0).getDate();
   }, [formYear, formMonth]);
 
-  
+
   // cambia el mes visible usando las flechas de los lados
-  function changeMonth(direction: number) {setVisibleMonth(current =>new Date(current.getFullYear(),current.getMonth() + direction,1));}
+  function changeMonth(direction: number) {
+    setVisibleMonth(
+      current =>
+        new Date(current.getFullYear(), current.getMonth() + direction, 1)
+    );
+  }
 
   // selecciona un dia del calendario
-  function selectCalendarDate(date: Date) {setSelectedDate(date);
+  function selectCalendarDate(date: Date) {
+    setSelectedDate(date);
 
     // actualiza el mes visible para mostrar el dia elegido
     setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1));
@@ -308,17 +378,27 @@ export default function HomeScreen() {
   }
 
   // regresa planificacion/calendario a la fecha actual
-  function goToToday() {const now = new Date();setSelectedDate(now);setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));setWeekStart(getMonday(now));}
+  function goToToday() {
+    const now = new Date();
+    setSelectedDate(now);
+    setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setWeekStart(getMonday(now));
+  }
 
 
   // cajita con la fecha actual
-  function openDateSelector() {setFormYear(String(selectedDate.getFullYear()));setFormMonth(selectedDate.getMonth());setFormDay(String(selectedDate.getDate()));
+  function openDateSelector() {
+    setFormYear(String(selectedDate.getFullYear()));
+    setFormMonth(selectedDate.getMonth());
+    setFormDay(String(selectedDate.getDate()));
     setModalMonthMenuVisible(false);
     setDateModalVisible(true);
   }
 
   // valida y confirma la fecha elegida en la cajita
-  function confirmManualDate() {const year = Number(formYear); const day = Number(formDay);
+  function confirmManualDate() {
+    const year = Number(formYear);
+    const day = Number(formDay);
 
     // comprueba que el año sea valido
     if (
@@ -334,7 +414,7 @@ export default function HomeScreen() {
     // comprueba que el dia este dentro del rango permitido
     if (
       !Number.isInteger(day) || day < 1 || day > daysInMonth
-) {
+    ) {
       Alert.alert(
         'Día no válido', `El mes seleccionado tiene ${daysInMonth} días.`
       );
@@ -383,7 +463,7 @@ export default function HomeScreen() {
 
 //completar actividades
 
-  // enmbia soli al back para marcar una acti como realizada 
+  // enmbia soli al back para marcar una acti como realizada
   async function completeTask(taskId: string) {
     try {
       const session = await getSession();
@@ -402,40 +482,57 @@ export default function HomeScreen() {
       // recarga las actis para nmostrar el nuevo estado
       await loadTasks(false);
     } catch (err) {
-      Alert.alert('No se pudo actualizar', err instanceof Error ? err.message : 'Intenta nuevamente.'
+      Alert.alert(
+        'No se pudo actualizar',
+        err instanceof Error ? err.message : 'Intenta nuevamente.'
       );
     }
   }
 
   //fila de actividad
 
-  // construye fila reutilizable para mostrar una acti 
+  // construye fila reutilizable para mostrar una acti
   function renderTaskRow(task: Task, showDate = false) {
-    const statusLabel =task.status === 'en_curso' ? 'EN CURSO' : 'PENDIENTE';
-    
+    const statusLabel = task.status === 'en_curso' ? 'EN CURSO' : 'PENDIENTE';
+
     return (
       <View key={task.id} style={styles.activityRow}>
         <View
-          style={[styles.activityBullet,{backgroundColor:task.status === 'en_curso'? COLORS.brightWine: '#9C484F',},]}
+          style={[
+            styles.activityBullet,
+            {
+              backgroundColor:
+                task.status === 'en_curso' ? COLORS.brightWine : '#9C484F',
+            },
+          ]}
         />
 
         <View style={styles.activityInfo}>
           <Text style={styles.activitySubject}>{task.title}</Text>
 
           <Text style={styles.activityDate}>
-            {showDate && task.dueDate? formatShortDate(parseDate(task.dueDate)): task.dueTime? `Hoy · ${task.dueTime}`: task.type.toUpperCase()}
+            {showDate && task.dueDate
+              ? formatShortDate(parseDate(task.dueDate))
+              : task.dueTime
+                ? `Hoy · ${task.dueTime}`
+                : task.type.toUpperCase()}
           </Text>
         </View>
 
         <View
-          style={[styles.statusBadge,task.status === 'en_curso'? styles.inProgressBadge: styles.pendingBadge,]}
+          style={[
+            styles.statusBadge,
+            task.status === 'en_curso' ? styles.inProgressBadge : styles.pendingBadge,
+          ]}
         >
           <Text style={styles.statusText}>{statusLabel}</Text>
         </View>
 
-        //boton para completar la acti
+        {/* boton para completar la acti */}
         <Pressable
-          onPress={() => completeTask(task.id)}style={styles.completeButton}accessibilityLabel={`Marcar ${task.title} como realizada`}
+          onPress={() => completeTask(task.id)}
+          style={styles.completeButton}
+          accessibilityLabel={`Marcar ${task.title} como realizada`}
         >
           <Lucide
             name="circle-check"
@@ -500,7 +597,10 @@ export default function HomeScreen() {
             <View style={styles.greetingContainer}>
               <Text style={styles.date}>
                 {new Date()
-                  .toLocaleDateString('es-CO', {weekday: 'long',day: '2-digit',month: 'long',
+                  .toLocaleDateString('es-CO', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
                   })
                   .toUpperCase()}
               </Text>
@@ -516,24 +616,8 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            <View style={styles.headerIcons}>
-              <Pressable
-                style={styles.iconButton}
-                onPress={() =>Alert.alert('Notificaciones','Próximamente podrás consultar tus notificaciones.')}
-              >
-                <Lucide name="bell" size={22} color={COLORS.brightWine} />
-              </Pressable>
-
-              <Pressable
-                style={styles.iconButton}
-                onPress={() =>Alert.alert('Perfil', 'Aquí podrás consultar tu perfil.')
-                }
-              >
-                <Lucide name="user-round" size={22} color={COLORS.text} />
-              </Pressable>
-            </View>
+          <HeaderActions />
           </View>
-
 
           {error !== '' ? (
             <View style={styles.errorCard}>
@@ -655,7 +739,11 @@ export default function HomeScreen() {
 
                 const isToday = item.dateString === today;
 
-                const hasActivity = tasks.some(task =>task.dueDate === item.dateString &&task.status !== 'realizada');
+                const hasActivity = tasks.some(
+                  task =>
+                    task.dueDate === item.dateString &&
+                    task.status !== 'realizada'
+                );
 
                 return (
                   <Pressable
@@ -683,7 +771,10 @@ export default function HomeScreen() {
 
                     {hasActivity ? (
                       <View
-                        style={[styles.activityDot, isSelected && styles.selectedActivityDot,]}
+                        style={[
+                          styles.activityDot,
+                          isSelected && styles.selectedActivityDot,
+                        ]}
                       />
                     ) : null}
                   </Pressable>
@@ -771,7 +862,12 @@ export default function HomeScreen() {
             </View>
 
             <Text style={styles.selectedDateLabel}>
-              {selectedDate.toLocaleDateString('es-CO', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',})}
+              {selectedDate.toLocaleDateString('es-CO', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
             </Text>
 
             <View style={styles.weekNavigation}>
@@ -804,18 +900,24 @@ export default function HomeScreen() {
                   <Pressable
                     key={formatDate(date)}
                     onPress={() => selectCalendarDate(date)}
-                    style={[styles.weekDayButton, isSelected && styles.selectedWeekDay,]}
+                    style={[
+                      styles.weekDayButton,
+                      isSelected && styles.selectedWeekDay,
+                    ]}
                   >
                     <Text
                       style={[
-                        styles.weekDayName, isSelected && styles.selectedWeekText,]}
+                        styles.weekDayName,
+                        isSelected && styles.selectedWeekText,
+                      ]}
                     >
                       {WEEK_DAYS[(date.getDay() + 6) % 7]}
                     </Text>
 
                     <Text
                       style={[
-                        styles.weekDayNumber, isSelected && styles.selectedWeekText,
+                        styles.weekDayNumber,
+                        isSelected && styles.selectedWeekText,
                       ]}
                     >
                       {date.getDate()}
@@ -823,7 +925,10 @@ export default function HomeScreen() {
 
                     {isToday ? (
                       <View
-                        style={[styles.todayIndicator, isSelected && styles.todayIndicatorSelected,]}
+                        style={[
+                          styles.todayIndicator,
+                          isSelected && styles.todayIndicatorSelected,
+                        ]}
                       />
                     ) : null}
                   </Pressable>
@@ -845,11 +950,16 @@ export default function HomeScreen() {
               ) : (
                 selectedDayTasks.map(task => (
                   <View key={task.id} style={styles.dayTaskRow}>
-                  //icono segun el tipo de acti
-
+                    {/* icono segun el tipo de acti */}
                     <View style={styles.dayTaskIcon}>
                       <Lucide
-                        name={task.type === 'recordatorio'? 'bell': task.type === 'nota'? 'notebook-pen': 'book-open'}
+                        name={
+                          task.type === 'recordatorio'
+                            ? 'bell'
+                            : task.type === 'nota'
+                              ? 'notebook-pen'
+                              : 'book-open'
+                        }
                         size={21}
                         color={COLORS.brightWine}
                       />
@@ -890,7 +1000,7 @@ export default function HomeScreen() {
             {completedTasks.length === 0 ? (
               <View style={styles.emptyState}>
                 <Lucide
-                  name="check-circle"
+                  name="circle-check"
                   size={34}
                   color={COLORS.brightWine}
                 />
@@ -914,7 +1024,9 @@ export default function HomeScreen() {
                     <Text style={styles.completedTaskTitle}>{task.title}</Text>
 
                     <Text style={styles.completedTaskDate}>
-                      {task.completedAt? `Completada · ${formatShortDate(new Date(task.completedAt))}`: 'Actividad realizada'}
+                      {task.completedAt
+                        ? `Completada · ${formatShortDate(new Date(task.completedAt))}`
+                        : 'Actividad realizada'}
                     </Text>
                   </View>
                 </View>
@@ -938,7 +1050,7 @@ export default function HomeScreen() {
 
               <View style={styles.progressCircle}>
                 <Svg width={150} height={150}>
-                  
+
                   <Circle
                     cx="75"
                     cy="75"
@@ -979,7 +1091,7 @@ export default function HomeScreen() {
                 {/* Barra horizontal de progreso. */}
                 <View style={styles.progressMiniBar}>
                   <View
-                    style={[styles.progressMiniFill,{ width: `${progress}%` },]}
+                    style={[styles.progressMiniFill, { width: `${progress}%` }]}
                   />
                 </View>
 
@@ -1001,7 +1113,7 @@ export default function HomeScreen() {
             </Text>
 
             <View style={styles.connectionGrid}>
-              
+
               {[
                 { name: 'Correo', icon: 'mail' as const },
                 { name: 'Classroom', icon: 'graduation-cap' as const },
@@ -1009,7 +1121,14 @@ export default function HomeScreen() {
                 { name: 'Teams', icon: 'users' as const },
               ].map(platform => (
                 <Pressable
-                  key={platform.name}style={styles.connectionItem}onPress={() =>Alert.alert(platform.name,'La conexión con esta plataforma estará disponible próximamente.') }
+                  key={platform.name}
+                  style={styles.connectionItem}
+                  onPress={() =>
+                    Alert.alert(
+                      platform.name,
+                      'La conexión con esta plataforma estará disponible próximamente.'
+                    )
+                  }
                 >
                   <View style={styles.connectionIcon}>
                     <Lucide
@@ -1024,10 +1143,15 @@ export default function HomeScreen() {
                   </Text>
                 </Pressable>
               ))}
-s
+
               <Pressable
                 style={[styles.connectionItem, styles.addConnectionItem]}
-                onPress={() =>Alert.alert('Añadir conexión','Aquí podrás agregar nuevas plataformas próximamente.')}
+                onPress={() =>
+                  Alert.alert(
+                    'Añadir conexión',
+                    'Aquí podrás agregar nuevas plataformas próximamente.'
+                  )
+                }
               >
                 <View style={styles.addConnectionIcon}>
                   <Lucide name="plus" size={23} color={COLORS.text} />
@@ -1104,14 +1228,15 @@ s
                 />
               </View>
 
- 
+
 
               <View style={styles.formField}>
                 <Text style={styles.formLabel}>MES</Text>
 
                 <Pressable
                   style={styles.modalMonthDropdownButton}
-                  onPress={() =>setModalMonthMenuVisible(current => !current)
+                  onPress={() =>
+                    setModalMonthMenuVisible(current => !current)
                   }
                 >
                   <Lucide name="menu" size={20} color={COLORS.brightWine} />
@@ -1142,11 +1267,16 @@ s
                         <Pressable
                           key={month}
                           onPress={() => changeFormMonth(index)}
-                          style={[styles.modalMonthItem,formMonth === index &&styles.modalMonthItemActive,]}
+                          style={[
+                            styles.modalMonthItem,
+                            formMonth === index && styles.modalMonthItemActive,
+                          ]}
                         >
                           <Text
                             style={[
-                              styles.modalMonthItemText,formMonth === index && styles.modalMonthItemTextActive,]}
+                              styles.modalMonthItemText,
+                              formMonth === index && styles.modalMonthItemTextActive,
+                            ]}
                           >
                             {month}
                           </Text>
@@ -1217,31 +1347,15 @@ s
         </KeyboardAvoidingView>
       </Modal>
 
-      <View style={styles.bottomBar}>
-        <View style={styles.navItem}>
-          <Lucide name="lightbulb" size={24} color={COLORS.text} />
-        </View>
-
-        <View style={styles.navItem}>
-          <Lucide name="notebook-pen" size={24} color={COLORS.text} />
-        </View>
-
-        {/* Pantalla actual: inicio. */}
-        <View style={styles.activeNavItem}>
-          <Lucide name="house" size={26} color={COLORS.white} />
-        </View>
-
-        <View style={styles.navItem}>
-          <Lucide name="book-open" size={24} color={COLORS.text} />
-        </View>
-
-        <View style={styles.navItem}>
-          <Lucide name="user-round" size={24} color={COLORS.text} />
-        </View>
-      </View>
+      <BottomNavigation
+        activeScreen="Home"
+        onHome={() => navigation.navigate('Home')}
+        onSubjects={() => navigation.navigate('Subjects')}
+      />
     </View>
   );
 }
+
 
 // ESTILOS
 
@@ -1304,32 +1418,35 @@ const styles = StyleSheet.create({
   },
 
   date: {
-    fontFamily: 'PlayfairDisplay_400Regular',
-    fontSize: 8,
+    fontFamily: 'FONTS.body',
+    fontSize: 10,
     color: COLORS.brightWine,
-    marginBottom: 2,
+    marginTop: 10,
     letterSpacing: 0.8,
+    marginBottom: 8,
   },
 
   greeting: {
     fontFamily: 'BebasNeue_400Regular',
-    fontSize: 32,
+    fontSize: 42,
     color: COLORS.text,
+    marginBottom: -10,
   },
 
   userName: {
     fontFamily: 'BebasNeue_400Regular',
-    fontSize: 32,
+    fontSize: 33,
     color: COLORS.brightWine,
     marginTop: -1,
+    marginBottom: 20,
   },
 
   description: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'FONTS.body',
     fontSize: 12,
     color: COLORS.muted,
-    marginTop: 2,
-    lineHeight: 15,
+    marginBottom: 20,
+    lineHeight: 15
   },
 
 //iconos encabezado
@@ -1343,7 +1460,7 @@ const styles = StyleSheet.create({
   },
 
   iconButton: {
-  width: 36,
+    width: 36,
     height: 39,
     alignItems: 'center',
     justifyContent: 'center',
