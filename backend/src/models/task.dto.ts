@@ -3,6 +3,7 @@ import {
   TaskPriority,
   TaskStatus,
   TaskType,
+  TaskSubtask,
 } from "./task.model";
 
 export interface CreateTaskDto {
@@ -13,6 +14,7 @@ export interface CreateTaskDto {
   subjectId?: string | null;
   dueDate?: string | null;
   dueTime?: string | null;
+  subtasks?: TaskSubtask[];
 }
 
 export interface UpdateTaskDto {
@@ -24,6 +26,7 @@ export interface UpdateTaskDto {
   subjectId?: string | null;
   dueDate?: string | null;
   dueTime?: string | null;
+  subtasks?: TaskSubtask[];
 }
 
 export interface TaskResponseDto {
@@ -36,6 +39,8 @@ export interface TaskResponseDto {
   subjectId: string | null;
   dueDate: string | null;
   dueTime: string | null;
+  subtasks: TaskSubtask[];
+  progress: number;
   createdAt: Date;
   updatedAt: Date;
   completedAt: Date | null;

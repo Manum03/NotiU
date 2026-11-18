@@ -23,6 +23,12 @@ export const TASK_TYPES = [
 
 export type TaskType = (typeof TASK_TYPES)[number];
 
+export interface TaskSubtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface Task {
   id: string;
   userId: number;
@@ -34,6 +40,7 @@ export interface Task {
   subjectId: string | null;
   dueDate: string | null;
   dueTime: string | null;
+  subtasks: TaskSubtask[];
   createdAt: Date;
   updatedAt: Date;
   completedAt: Date | null;

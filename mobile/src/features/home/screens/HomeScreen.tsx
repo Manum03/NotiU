@@ -1351,6 +1351,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         activeScreen="Home"
         onHome={() => navigation.navigate('Home')}
         onSubjects={() => navigation.navigate('Subjects')}
+        onTasks={() => navigation.navigate('Tasks')}
       />
     </View>
   );

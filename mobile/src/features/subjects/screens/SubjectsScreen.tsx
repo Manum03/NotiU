@@ -215,7 +215,7 @@ export default function SubjectsScreen({ navigation }: Props) {
         )}
 
         
-               {/* Resumen académico */}
+               {/* Resumen academico */}
         <View style={styles.summarySection}>
           <View style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>
@@ -389,11 +389,12 @@ export default function SubjectsScreen({ navigation }: Props) {
         )}
       </ScrollView>
 
-      {/* Navegación inferior */}
+      {/* Navegacion inferior */}
       <BottomNavigation
         activeScreen="Subjects"
         onHome={() => navigation.navigate('Home')}
         onSubjects={() => navigation.navigate('Subjects')}
+        onTasks={() => navigation.navigate('Tasks')}
       />
     </View>
   );

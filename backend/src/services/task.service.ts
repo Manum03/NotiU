@@ -1,12 +1,7 @@
 
 import { randomUUID } from "crypto";
 
-import {
-  Task,
-  TaskPriority,
-  TaskStatus,
-  TaskType,
-} from "../models/task.model";
+import { Task } from "../models/task.model";
 
 import {
   CreateTaskDto,
@@ -30,6 +25,20 @@ function toTaskResponse(task: Task): TaskResponseDto {
     subjectId: task.subjectId,
     dueDate: task.dueDate,
     dueTime: task.dueTime,
+
+    subtasks: task.subtasks.map((subtask) => ({ ...subtask })),
+
+    progress:
+      task.subtasks.length > 0
+        ? Math.round(
+            (task.subtasks.filter((subtask) => subtask.completed).length /
+              task.subtasks.length) *
+              100
+          )
+        : task.status === "realizada"
+          ? 100
+          : 0,
+
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     completedAt: task.completedAt,
@@ -53,6 +62,7 @@ export function createTask(
     subjectId: data.subjectId ?? null,
     dueDate: data.dueDate ?? null,
     dueTime: data.dueTime ?? null,
+    subtasks: data.subtasks?.map((subtask) => ({ ...subtask })) ?? [],
     createdAt: now,
     updatedAt: now,
     completedAt: null,
@@ -139,15 +149,23 @@ export function updateTask(
     throw new HttpError(404, "Tarea no encontrada");
   }
 
-  if (data.title !== undefined) task.title = data.title.trim();
+  if (data.title !== undefined) {
+    task.title = data.title.trim();
+  }
+
   if (data.description !== undefined) {
     task.description = data.description.trim();
   }
+
   if (data.type !== undefined) task.type = data.type;
   if (data.priority !== undefined) task.priority = data.priority;
   if (data.subjectId !== undefined) task.subjectId = data.subjectId;
   if (data.dueDate !== undefined) task.dueDate = data.dueDate;
   if (data.dueTime !== undefined) task.dueTime = data.dueTime;
+
+  if (data.subtasks !== undefined) {
+    task.subtasks = data.subtasks.map((subtask) => ({ ...subtask }));
+  }
 
   if (data.status !== undefined) {
     task.status = data.status;

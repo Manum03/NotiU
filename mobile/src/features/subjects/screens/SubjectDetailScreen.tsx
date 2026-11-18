@@ -1,5 +1,5 @@
 import { FONTS } from '../../../core/theme/fonts';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Lucide } from '@react-native-vector-icons/lucide';
@@ -8,18 +8,108 @@ import type { RootStackParamList } from '../../../navigation/AppNavigator';
 import { apiRequest } from '../../../services/api/api';
 import { getSession } from '../../../services/storage/authStorage';
 import {
-  ACTIVITY_LABEL, COLORS, PRIORITY_COLOR, PRIORITY_LABEL, STATUS_COLOR, STATUS_LABEL,
-  formatLongDate, formatTime,
+  ACTIVITY_LABEL,
+  COLORS,
+  PRIORITY_COLOR,
+  PRIORITY_LABEL,
+  STATUS_COLOR,
+  STATUS_LABEL,
+  formatLongDate,
+  formatTime,
+  SubjectPriority,
 } from '../types';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubjectDetail'>;
 
 export default function SubjectDetailScreen({ navigation, route }: Props) {
   const [subject, setSubject] = useState(route.params.subject);
   const [saving, setSaving] = useState(false);
+  useFocusEffect(
+  useCallback(() => {
+    let cancelled = false;
+
+    const loadSubject = async () => {
+      try {
+        const session = await getSession();
+        if (!session?.token) {
+          throw new Error('No se encontró una sesión activa.');
+        }
+
+        const updatedSubject = await apiRequest<typeof subject>(
+          `/subjects/${route.params.subject.id}`,
+          {
+            method: 'GET',
+            token: session.token,
+          },
+        );
+
+        if (!cancelled) {
+          setSubject(updatedSubject);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          Alert.alert(
+            'No se pudo actualizar la materia',
+            err instanceof Error ? err.message : 'Intenta de nuevo.',
+          );
+        }
+      }
+    };
+
+    loadSubject();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [route.params.subject.id]),
+);
+
+  const deleteSubject = async () => {
+    try {
+      setSaving(true);
+
+      const session = await getSession();
+      if (!session?.token) {
+        throw new Error('No se encontró una sesión activa.');
+      }
+
+      await apiRequest<unknown>(`/subjects/${subject.id}`, {
+        method: 'DELETE',
+        token: session.token,
+      });
+
+      navigation.goBack();
+    } catch (err) {
+      Alert.alert(
+        'No se pudo eliminar',
+        err instanceof Error ? err.message : 'Intenta de nuevo.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Eliminar materia',
+      `¿Estás seguro de que deseas eliminar "${subject.name}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: deleteSubject },
+      ],
+    );
+  };
 
   const done = subject.status === 'aprobada';
-  const priorityColor = PRIORITY_COLOR[subject.priority];
+  const PRIORITY_TONES: Record<SubjectPriority, string> = {
+  alta: '#E0A2B0',
+  media: '#EBB68D',
+  baja: '#B5D3A3',
+  sin_fecha: '#BFA6DB',
+};
+
+const priorityColor = PRIORITY_TONES[subject.priority];
 
   const completeSubject = async () => {
     try {
@@ -55,9 +145,6 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
         </Pressable>
 
         <View style={styles.hero}>
-          <View style={styles.iconBox}>
-            <Lucide name="code" size={34} color={COLORS.text} />
-          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{subject.name.toUpperCase()}</Text>
             <Text style={styles.teacher}>{subject.teacher || 'Docente por asignar'}</Text>
@@ -124,9 +211,34 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
           <Text style={styles.body}>{subject.notes || 'Sin notas.'}</Text>
         </View>
 
-        <View style={styles.actions}>
+                <View style={styles.actions}>
+          <View style={styles.topActions}>
+            <Pressable
+              style={[styles.button, styles.buttonGhost]}
+              onPress={() => navigation.navigate('AddSubject', { subjectId: subject.id })}
+            >
+              <Lucide name="pencil" size={18} color={COLORS.text} />
+              <Text style={styles.buttonText}>EDITAR</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.button, styles.buttonDelete]}
+              onPress={confirmDelete}
+              disabled={saving}
+            >
+              <Lucide name="trash-2" size={18} color="#FF6B7A" />
+              <Text style={[styles.buttonText, { color: '#FF6B7A' }]}>
+                ELIMINAR
+              </Text>
+            </Pressable>
+          </View>
+
           {!done && (
-            <Pressable style={[styles.button, styles.buttonMain]} onPress={confirmComplete} disabled={saving}>
+            <Pressable
+              style={[styles.button, styles.buttonMain]}
+              onPress={confirmComplete}
+              disabled={saving}
+            >
               {saving ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
@@ -137,14 +249,6 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
               )}
             </Pressable>
           )}
-
-          <Pressable
-            style={[styles.button, styles.buttonGhost]}
-            onPress={() => Alert.alert('Próximamente', 'La edición se agregará en el siguiente paso.')}
-          >
-            <Lucide name="pencil" size={18} color={COLORS.text} />
-            <Text style={styles.buttonText}>EDITAR</Text>
-          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -158,10 +262,6 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 18,
     borderWidth: 1, borderColor: COLORS.brightWine, backgroundColor: '#310B19', marginBottom: 22,
-  },
-  iconBox: {
-    width: 58, height: 58, borderRadius: 16, borderWidth: 1.5, borderColor: COLORS.text,
-    alignItems: 'center', justifyContent: 'center',
   },
   name: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
   teacher: { color: COLORS.muted, fontSize: 11, marginTop: 2 },
@@ -177,12 +277,24 @@ const styles = StyleSheet.create({
     marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1,
     borderColor: COLORS.border, backgroundColor: COLORS.card,
   },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+    actions: {
+    gap: 12,
+    marginTop: 24,
+  },
+  topActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   button: {
     flex: 1, height: 50, borderRadius: 14, flexDirection: 'row',
     alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   buttonMain: { backgroundColor: COLORS.wine, borderWidth: 1, borderColor: COLORS.brightWine },
   buttonGhost: { borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+    buttonDelete: {
+    borderWidth: 1,
+    borderColor: '#7A2635',
+    backgroundColor: '#2B1115',
+  },
   buttonText: { color: COLORS.text, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
 });

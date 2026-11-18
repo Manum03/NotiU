@@ -10,17 +10,19 @@ import SubjectsScreen from '../features/subjects/screens/SubjectsScreen';
 import SubjectDetailScreen from '../features/subjects/screens/SubjectDetailScreen';
 import AddSubjectScreen from '../features/subjects/screens/AddSubjectScreen';
 import AddTaskScreen from '../features/tasks/screens/AddTaskScreen';
+import RemindersScreen from '../features/tasks/screens/RemindersScreen';
 import type { Subject } from '../features/subjects/types';
 
 export type RootStackParamList = {
+  Tasks: undefined;
   Welcome: undefined;
   Login: undefined;
   Register: undefined;
   Home: undefined;
   Subjects: undefined;
   SubjectDetail: { subject: Subject };
-  AddSubject: undefined;
-  AddTask: undefined;
+  AddSubject: { subjectId?: string } | undefined;
+  AddTask: { type?: 'tarea' | 'recordatorio' | 'nota' | 'checklist' } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -65,6 +67,7 @@ export default function AppNavigator() {
         <Stack.Screen name="SubjectDetail" component={SubjectDetailScreen} />
         <Stack.Screen name="AddSubject" component={AddSubjectScreen} />
         <Stack.Screen name="AddTask" component={AddTaskScreen} />
+        <Stack.Screen name="Tasks" component={RemindersScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -530,7 +530,7 @@ export default function SubjectsScreen({ navigation, route }: SubjectsScreenProp
                     </View>
                   )}
 
-                  {/* Información inferior */}
+                  {/* Info inferior */}
                   <View style={styles.subjectFooter}>
                     <View style={styles.infoItem}>
                       <Lucide

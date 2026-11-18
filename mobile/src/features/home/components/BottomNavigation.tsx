@@ -4,9 +4,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Lucide } from '@react-native-vector-icons/lucide';
 
 type Props = {
-  activeScreen: 'Home' | 'Subjects';
+  activeScreen: 'Home' | 'Subjects' | 'Tasks';
   onHome: () => void;
   onSubjects: () => void;
+  onTasks?: () => void;
 };
 
 const COLORS = {
@@ -20,6 +21,7 @@ export default function BottomNavigation({
   activeScreen,
   onHome,
   onSubjects,
+  onTasks,
 }: Props) {
   return (
     <View style={styles.bottomBar}>
@@ -27,8 +29,18 @@ export default function BottomNavigation({
         <Lucide name="lightbulb" size={24} color={COLORS.text} />
       </Pressable>
 
-      <Pressable style={styles.navItem}>
-        <Lucide name="notebook-pen" size={24} color={COLORS.text} />
+      <Pressable
+        style={[
+          styles.navItem,
+          activeScreen === 'Tasks' && styles.activeNavItem,
+        ]}
+        onPress={onTasks}
+      >
+        <Lucide
+          name="notebook-pen"
+          size={24}
+          color={activeScreen === 'Tasks' ? COLORS.white : COLORS.text}
+        />
       </Pressable>
 
       <Pressable

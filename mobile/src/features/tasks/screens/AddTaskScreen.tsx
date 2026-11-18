@@ -23,7 +23,7 @@ import type { Subject, SubjectsResponse } from '../../subjects/types';
 import { COLORS } from '../../subjects/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddTask'>;
-type TaskType = 'tarea' | 'recordatorio';
+type TaskType = 'tarea' | 'recordatorio' | 'nota';
 type TaskPriority = 'baja' | 'media' | 'alta';
 
 function OptionChip({
@@ -47,10 +47,19 @@ function OptionChip({
   );
 }
 
-export default function AddTaskScreen({ navigation }: Props) {
+export default function AddTaskScreen({ navigation, route }: Props) {
+  const formMode = route.params?.type ?? 'tarea';
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<TaskType>('tarea');
+  const [subtasks, setSubtasks] = useState<
+  { id: string; title: string; completed: boolean }[]
+>([]);
+const [newSubtask, setNewSubtask] = useState('');
+  const [type, setType] = useState<TaskType>(
+  formMode === 'checklist'
+    ? 'tarea'
+    : formMode
+);
   const [priority, setPriority] = useState<TaskPriority>('media');
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState('');
@@ -89,6 +98,22 @@ export default function AddTaskScreen({ navigation }: Props) {
     };
   }, []);
 
+  const addSubtask = () => {
+  const cleanTitle = newSubtask.trim();
+
+  if (!cleanTitle) return;
+
+  setSubtasks((current) => [
+    ...current,
+    {
+      id: `${Date.now()}-${Math.random()}`,
+      title: cleanTitle,
+      completed: false,
+    },
+  ]);
+
+  setNewSubtask('');
+};
   const saveTask = async () => {
     if (!title.trim()) {
       Alert.alert('Falta el título', 'Escribe el nombre de la actividad.');
@@ -124,7 +149,7 @@ export default function AddTaskScreen({ navigation }: Props) {
           subjectId,
           dueDate: dueDate || null,
           dueTime: dueTime || null,
-          subtasks: [],
+          subtasks: formMode === 'checklist' ? subtasks : [],
         }),
       });
 
@@ -157,12 +182,28 @@ export default function AddTaskScreen({ navigation }: Props) {
           </Pressable>
 
           <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>ORGANIZA TU TIEMPO</Text>
-            <Text style={styles.heading}>Nueva actividad</Text>
-            <Text style={styles.subtitle}>
-              Registra algo que necesitas realizar.
-            </Text>
-          </View>
+  <Text style={styles.eyebrow}>MI LIBRETA</Text>
+
+  <Text style={styles.heading}>
+    {formMode === 'nota'
+      ? 'Nueva nota'
+      : formMode === 'recordatorio'
+        ? 'Nuevo recordatorio'
+        : formMode === 'checklist'
+          ? 'Nueva checklist'
+          : 'Nueva actividad'}
+  </Text>
+
+  <Text style={styles.subtitle}>
+    {formMode === 'nota'
+      ? 'Guarda tus ideas y apuntes.'
+      : formMode === 'recordatorio'
+        ? 'No olvides tus próximas actividades.'
+        : formMode === 'checklist'
+          ? 'Organiza tus pendientes paso a paso.'
+          : 'Registra algo que necesitas realizar.'}
+  </Text>
+</View>
 
           <HeaderActions />
         </View>
@@ -170,17 +211,37 @@ export default function AddTaskScreen({ navigation }: Props) {
         <View style={styles.formCard}>
           <Text style={styles.sectionTitle}>Información general</Text>
 
-          <Text style={styles.label}>Nombre de la actividad *</Text>
+          <Text style={styles.label}>
+  {formMode === 'nota'
+    ? 'Nombre de la nota *'
+    : formMode === 'recordatorio'
+      ? 'Nombre del recordatorio *'
+      : formMode === 'checklist'
+        ? 'Nombre de la checklist *'
+        : 'Nombre de la actividad *'}
+</Text>
           <TextInput
             value={title}
             onChangeText={setTitle}
-            placeholder="Ej. Entregar proyecto de programación"
+            placeholder={
+  formMode === 'nota'
+    ? 'Escribe tus ideas y apuntes aquí...'
+    : formMode === 'checklist'
+      ? 'Agrega una descripción para tu lista...'
+      : 'Describe lo que necesitas realizar...'
+}
             placeholderTextColor={COLORS.soft}
             style={styles.input}
             maxLength={100}
           />
 
-          <Text style={styles.label}>Descripción</Text>
+          <Text style={styles.label}>
+  {formMode === 'nota'
+    ? 'Contenido de la nota'
+    : formMode === 'checklist'
+      ? 'Descripción (opcional)'
+      : 'Descripción'}
+</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -190,8 +251,74 @@ export default function AddTaskScreen({ navigation }: Props) {
             multiline
             textAlignVertical="top"
           />
+                    {formMode === 'checklist' && (
+            <>
+              <View style={styles.divider} />
 
-          <Text style={styles.label}>Tipo de actividad</Text>
+              <Text style={styles.sectionTitle}>Elementos de mi lista</Text>
+              <Text style={styles.helper}>
+                Agrega las actividades o pendientes que necesitas completar.
+              </Text>
+
+              <View style={styles.newSubtaskRow}>
+                <TextInput
+                  value={newSubtask}
+                  onChangeText={setNewSubtask}
+                  placeholder="Escribe un pendiente..."
+                  placeholderTextColor={COLORS.soft}
+                  style={styles.subtaskInput}
+                  onSubmitEditing={addSubtask}
+                  returnKeyType="done"
+                />
+
+                <Pressable
+                  style={styles.addSubtaskButton}
+                  onPress={addSubtask}
+                >
+                  <Lucide name="plus" size={21} color={COLORS.white} />
+                </Pressable>
+              </View>
+
+              {subtasks.map((item) => (
+                <View key={item.id} style={styles.subtaskItem}>
+                  <Lucide
+                    name="circle"
+                    size={17}
+                    color={COLORS.brightWine}
+                  />
+                  <Text style={styles.subtaskText}>{item.title}</Text>
+
+                  <Pressable
+                    onPress={() =>
+                      setSubtasks((current) =>
+                        current.filter((subtask) => subtask.id !== item.id)
+                      )
+                    }
+                  >
+                    <Lucide name="x" size={18} color={COLORS.muted} />
+                  </Pressable>
+                </View>
+              ))}
+            </>
+          )}
+          {formMode === 'tarea' && (
+  <>
+    <Text style={styles.label}>Tipo de actividad</Text>
+
+    <View style={styles.optionsRow}>
+      <OptionChip
+        label="Tarea"
+        selected={type === 'tarea'}
+        onPress={() => setType('tarea')}
+      />
+      <OptionChip
+        label="Recordatorio"
+        selected={type === 'recordatorio'}
+        onPress={() => setType('recordatorio')}
+      />
+    </View>
+  </>
+)}
           <View style={styles.optionsRow}>
             <OptionChip
               label="Tarea"
@@ -205,6 +332,10 @@ export default function AddTaskScreen({ navigation }: Props) {
             />
           </View>
 
+          {formMode !== 'nota' && (
+          <>
+            </>
+)}
           <Text style={styles.label}>Prioridad</Text>
           <View style={styles.optionsRow}>
             <OptionChip
@@ -228,8 +359,14 @@ export default function AddTaskScreen({ navigation }: Props) {
 
           <Text style={styles.sectionTitle}>Materia relacionada</Text>
           <Text style={styles.helper}>
-            Puedes asociar esta actividad a una materia o dejarla independiente.
-          </Text>
+  {formMode === 'nota'
+    ? 'Puedes guardar esta nota dentro de una materia o mantenerla personal.'
+    : formMode === 'recordatorio'
+      ? 'Relaciona este recordatorio con una materia o déjalo independiente.'
+      : formMode === 'checklist'
+        ? 'Puedes vincular esta lista a una materia o mantenerla independiente.'
+        : 'Puedes asociar esta actividad a una materia o dejarla independiente.'}
+</Text>
 
           {loadingSubjects ? (
             <ActivityIndicator color={COLORS.brightWine} style={styles.loader} />
@@ -256,35 +393,48 @@ export default function AddTaskScreen({ navigation }: Props) {
             </View>
           )}
 
-          <View style={styles.divider} />
+                    {formMode !== 'nota' && (
+            <>
+              <View style={styles.divider} />
 
-          <Text style={styles.sectionTitle}>Fecha y hora</Text>
-          <Text style={styles.helper}>
-            Estos datos son opcionales.
-          </Text>
+              <Text style={styles.sectionTitle}>Fecha y hora</Text>
+              <Text style={styles.helper}>
+                Estos datos son opcionales.
+              </Text>
 
-          <Text style={styles.label}>Fecha de entrega</Text>
-          <TextInput
-            value={dueDate}
-            onChangeText={setDueDate}
-            placeholder="AAAA-MM-DD"
-            placeholderTextColor={COLORS.soft}
-            style={styles.input}
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
-          />
+              <Text style={styles.label}>
+                {formMode === 'recordatorio'
+                  ? 'Fecha del recordatorio'
+                  : formMode === 'checklist'
+                    ? 'Fecha límite'
+                    : 'Fecha de entrega'}
+              </Text>
 
-          <Text style={styles.label}>Hora</Text>
-          <TextInput
-            value={dueTime}
-            onChangeText={setDueTime}
-            placeholder="HH:MM (ej. 14:30)"
-            placeholderTextColor={COLORS.soft}
-            style={styles.input}
-            keyboardType="numbers-and-punctuation"
-            maxLength={5}
-          />
+              <TextInput
+                value={dueDate}
+                onChangeText={setDueDate}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor={COLORS.soft}
+                style={styles.input}
+                keyboardType="numbers-and-punctuation"
+                maxLength={10}
+              />
+
+              <Text style={styles.label}>Hora</Text>
+              <TextInput
+                value={dueTime}
+                onChangeText={setDueTime}
+                placeholder="HH:MM (ej. 14:30)"
+                placeholderTextColor={COLORS.soft}
+                style={styles.input}
+                keyboardType="numbers-and-punctuation"
+                maxLength={5}
+              />
+            </>
+          )}
+
         </View>
+
 
         <Pressable
           style={[styles.saveButton, saving && styles.disabledButton]}
@@ -296,7 +446,15 @@ export default function AddTaskScreen({ navigation }: Props) {
           ) : (
             <>
               <Lucide name="check" size={19} color={COLORS.white} />
-              <Text style={styles.saveText}>Guardar actividad</Text>
+              <Text style={styles.saveText}>
+  {formMode === 'nota'
+    ? 'Guardar nota'
+    : formMode === 'recordatorio'
+      ? 'Guardar recordatorio'
+      : formMode === 'checklist'
+        ? 'Guardar checklist'
+        : 'Guardar actividad'}
+</Text>
             </>
           )}
         </Pressable>
@@ -471,5 +629,49 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.body,
     fontSize: 13,
   },
+    newSubtaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginBottom: 14,
+  },
+  subtaskInput: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.text,
+    fontFamily: FONTS.body,
+    fontSize: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  addSubtaskButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: COLORS.wine,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subtaskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: COLORS.background,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    marginBottom: 8,
+  },
+  subtaskText: {
+    flex: 1,
+    color: COLORS.text,
+    fontFamily: FONTS.body,
+    fontSize: 13,
+  },
 });
+
 

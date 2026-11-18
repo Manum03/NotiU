@@ -1,12 +1,12 @@
 
 import React from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Lucide } from '@react-native-vector-icons/lucide';
 
 import { FONTS } from '../../../core/theme/fonts';
 import {
   COLORS,
-  STATUS_COLOR,
   STATUS_LABEL,
   Subject,
   formatShortDate,
@@ -18,125 +18,129 @@ type Props = {
   onPress: () => void;
 };
 
+const CARD_GRADIENT = {
+  cursando: ['#68132F', '#3B0B20', '#210914'],
+  pendiente: ['#75402D', '#49251F', '#260F16'],
+  aprobada: ['#59405F', '#38283F', '#1E101F'],
+} as const;
+
+const CARD_ACCENT = {
+  cursando: '#E47D9B',
+  pendiente: '#E5A16F',
+  aprobada: '#BDA0D4',
+} as const;
+
 export default function SubjectCard({ subject, onPress }: Props) {
-  const done = subject.status === 'aprobada';
   const progress = Math.min(100, Math.max(0, subject.progress ?? 0));
-  const statusColor = STATUS_COLOR[subject.status];
+  const accentColor = CARD_ACCENT[subject.status];
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Ver detalle de ${subject.name}`}
-      style={[
-        styles.card,
-        subject.status === 'cursando' && styles.cardActive,
-        subject.status === 'pendiente' && styles.cardPending,
-        done && styles.cardDone,
-      ]}
+      style={styles.card}
     >
-      {/* Nombre y estado */}
-      <View style={styles.titleRow}>
-        <Text style={styles.name} numberOfLines={1}>
-          {subject.name.toUpperCase()}
-        </Text>
+      <LinearGradient
+        colors={CARD_GRADIENT[subject.status]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        {/* Nombre y estado */}
+        <View style={styles.titleRow}>
+          <Text style={styles.name} numberOfLines={1}>
+            {subject.name.toUpperCase()}
+          </Text>
 
-        <View style={[styles.pill, { backgroundColor: statusColor }]}>
-          <Text
+          <View
             style={[
-              styles.pillText,
-              done && { color: COLORS.background },
+              styles.pill,
+              { backgroundColor: accentColor },
             ]}
           >
-            {STATUS_LABEL[subject.status]}
+            <Text style={styles.pillText}>
+              {STATUS_LABEL[subject.status]}
+            </Text>
+          </View>
+        </View>
+
+        {/* Docente */}
+        <Text style={styles.teacher} numberOfLines={1}>
+          {subject.teacher || 'Docente por asignar'}
+        </Text>
+
+        {/* Progreso */}
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressLabel}>PROGRESO</Text>
+          <Text style={[styles.percent, { color: accentColor }]}>
+            {progress}%
           </Text>
         </View>
-      </View>
 
-      {/* Docente */}
-      <Text style={styles.teacher} numberOfLines={1}>
-        {subject.teacher || 'Docente por asignar'}
-      </Text>
-
-      {/* Progreso */}
-      <View style={styles.progressHeader}>
-        <Text style={styles.progressLabel}>PROGRESO</Text>
-        <Text style={styles.percent}>{progress}%</Text>
-      </View>
-
-      <View style={styles.track}>
-        <View
-          style={[
-            styles.fill,
-            {
-              width: `${progress}%`,
-              backgroundColor: statusColor,
-            },
-          ]}
-        />
-      </View>
-
-      {/* Información adicional */}
-      <View style={styles.detailsRow}>
-        <View style={styles.detail}>
-          <Lucide
-            name="bell"
-            size={13}
-            color={COLORS.brightWine}
+        <View style={styles.track}>
+          <View
+            style={[
+              styles.fill,
+              {
+                width: `${progress}%`,
+                backgroundColor: accentColor,
+              },
+            ]}
           />
-          <Text style={styles.detailText} numberOfLines={1}>
-            {reminderShortLabel(subject)}
-          </Text>
         </View>
 
-        <View style={styles.detail}>
+        {/* Información adicional */}
+        <View style={styles.detailsRow}>
+          <View style={styles.detail}>
+            <Lucide
+              name="bell"
+              size={13}
+              color={accentColor}
+            />
+            <Text style={styles.detailText} numberOfLines={1}>
+              {reminderShortLabel(subject)}
+            </Text>
+          </View>
+
+          <View style={styles.detail}>
+            <Lucide
+              name="calendar"
+              size={13}
+              color={accentColor}
+            />
+            <Text style={styles.detailText} numberOfLines={1}>
+              {formatShortDate(subject.dueDate)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Indicador de entrada */}
+        <View style={styles.arrow}>
           <Lucide
-            name="calendar"
-            size={13}
-            color={COLORS.brightWine}
+            name="chevron-right"
+            size={18}
+            color={COLORS.text}
           />
-          <Text style={styles.detailText} numberOfLines={1}>
-            {formatShortDate(subject.dueDate)}
-          </Text>
         </View>
-      </View>
-
-      {/* Indicador de entrada */}
-      <View style={styles.arrow}>
-        <Lucide
-          name="chevron-right"
-          size={18}
-          color={COLORS.muted}
-        />
-      </View>
+      </LinearGradient>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+card: {
     position: 'relative',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.card,
-    padding: 16,
-    paddingRight: 35,
+    overflow: 'hidden',
     marginBottom: 14,
   },
 
-  cardActive: {
-    backgroundColor: '#310B19',
-    borderColor: COLORS.brightWine,
-  },
-
-  cardPending: {
-    backgroundColor: '#481D2B',
-  },
-
-  cardDone: {
-    backgroundColor: COLORS.cardDone,
-    borderColor: '#6B5A5E',
+  gradient: {
+    padding: 16,
+    paddingRight: 35,
   },
 
   titleRow: {
@@ -163,7 +167,7 @@ const styles = StyleSheet.create({
   },
 
   pillText: {
-    color: COLORS.white,
+    color: '#210914',
     fontFamily: FONTS.title,
     fontSize: 11,
     letterSpacing: 0.5,
@@ -192,7 +196,6 @@ const styles = StyleSheet.create({
   },
 
   percent: {
-    color: COLORS.text,
     fontFamily: FONTS.title,
     fontSize: 16,
   },
@@ -219,7 +222,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     paddingTop: 11,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(255,255,255,0.12)',
   },
 
   detail: {
@@ -239,5 +242,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 10,
     top: '50%',
+    transform: [{ translateY: -9 }],
   },
 });

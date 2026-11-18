@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   COLORS,
-  PRIORITY_COLOR,
   PRIORITY_LABEL,
   Subject,
   SubjectPriority,
@@ -36,6 +35,12 @@ const PRIORITIES: SubjectPriority[] = [
   'baja',
   'sin_fecha',
 ];
+const PRIORITY_TONES: Record<SubjectPriority, string> = {
+  alta: '#e0a2b0',
+  media: '#ebb68d',
+  baja: '#b5d3a3',
+  sin_fecha: '#bfa6db',
+};
 
 export default function SubjectFilters({
   subjects,
@@ -97,37 +102,41 @@ export default function SubjectFilters({
 
       <View style={styles.grid}>
         {PRIORITIES.map(value => {
-          const active = priority === value;
-          const color = PRIORITY_COLOR[value];
+  const active = priority === value;
+  const color = PRIORITY_TONES[value];
 
-          return (
-            <Pressable
-              key={value}
-              onPress={() =>
-                onPriorityChange(active ? null : value)
-              }
-              style={[
-                styles.priorityChip,
-                { borderColor: color },
-                active && { backgroundColor: color + '25' },
-              ]}
-            >
-              <View
-                style={[
-                  styles.priorityDot,
-                  { backgroundColor: color },
-                ]}
-              />
+  return (
+    <Pressable
+      key={value}
+      onPress={() =>
+        onPriorityChange(active ? null : value)
+      }
+      style={[
+        styles.priorityChip,
+        {
+          borderColor: color,
+          backgroundColor: active ? `${color}25` : '#260A13',
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.priorityDot,
+          { backgroundColor: color },
+        ]}
+      />
 
-              <Text
-                numberOfLines={1}
-                style={[styles.priorityText, { color }]}
-              >
-                {PRIORITY_LABEL[value]}
-              </Text>
-            </Pressable>
-          );
-        })}
+      <Text
+        style={[
+          styles.priorityText,
+          { color },
+        ]}
+      >
+        {PRIORITY_LABEL[value]}
+      </Text>
+    </Pressable>
+  );
+})}
       </View>
 
       {hasActiveFilters && (
@@ -214,28 +223,32 @@ const styles = StyleSheet.create({
 
   priorityChip: {
     width: '48%',
-    minHeight: 44,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 11,
+    minHeight: 40,
+    paddingHorizontal: 6,
+    paddingVertical: 7,
+    borderRadius: 10,
     borderWidth: 1,
+    borderColor: '#572033',
     backgroundColor: '#260A13',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
 
   priorityDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#AA6680',
   },
 
   priorityText: {
     flex: 1,
     flexShrink: 1,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#D9C2CC',
+    textAlign: 'center',
   },
 
   clearButton: {
