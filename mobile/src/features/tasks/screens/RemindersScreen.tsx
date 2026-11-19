@@ -1,6 +1,9 @@
-
+﻿
 import React, { useCallback, useMemo, useState } from 'react';
+import HeaderActions from '../../../components/HeaderActions';
 import {
+  Alert,
+  Modal,
   ActivityIndicator,
   Pressable,
   RefreshControl,
@@ -11,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Lucide } from '@react-native-vector-icons/lucide';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -45,7 +49,7 @@ type TasksResponse = {
   total: number;
 };
 
-type Filter = 'todo' | 'nota' | 'recordatorio' | 'checklist' | 'tarea';
+type Filter = 'todo' | 'nota' | 'recordatorio' | 'checklist' | 'tarea' | 'archivados';
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'todo', label: 'Todo' },
@@ -53,9 +57,12 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'recordatorio', label: 'Recordatorios' },
   { id: 'checklist', label: 'Checklists' },
   { id: 'tarea', label: 'Tareas' },
+  { id: 'archivados', label: 'Archivados' },
 ];
 
-function getTaskCategory(task: Task): Filter {
+type TaskCategory = Exclude<Filter, 'todo' | 'archivados'>;
+
+function getTaskCategory(task: Task): TaskCategory {
   if (task.type === 'nota') return 'nota';
   if (task.type === 'recordatorio') return 'recordatorio';
   if (task.subtasks && task.subtasks.length > 0) return 'checklist';
@@ -74,12 +81,15 @@ function formatDate(value: string | null) {
 
 export default function RemindersScreen({ navigation }: Props) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [archivedTasks, setArchivedTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<Filter>('todo');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const loadTasks = useCallback(async (showLoader = true) => {
     try {
@@ -92,12 +102,19 @@ export default function RemindersScreen({ navigation }: Props) {
         throw new Error('No se encontró una sesión activa.');
       }
 
-      const response = await apiRequest<TasksResponse>('/tasks', {
-        method: 'GET',
-        token: session.token,
-      });
+      const [response, archivedResponse] = await Promise.all([
+        apiRequest<TasksResponse>('/tasks', {
+          method: 'GET',
+          token: session.token,
+        }),
+        apiRequest<TasksResponse>('/tasks?archived=true', {
+          method: 'GET',
+          token: session.token,
+        }),
+      ]);
 
       setTasks(response.tasks ?? []);
+      setArchivedTasks(archivedResponse.tasks ?? []);
     } catch (err) {
       setError(
         err instanceof Error
@@ -130,12 +147,15 @@ export default function RemindersScreen({ navigation }: Props) {
 
   const filteredTasks = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
+    const sourceTasks = activeFilter === 'archivados' ? archivedTasks : tasks;
 
-    return tasks.filter(task => {
+    return sourceTasks.filter(task => {
       const category = getTaskCategory(task);
 
       const matchesFilter =
-        activeFilter === 'todo' || category === activeFilter;
+        activeFilter === 'todo' ||
+        activeFilter === 'archivados' ||
+        category === activeFilter;
 
       const matchesSearch =
         !normalizedSearch ||
@@ -144,13 +164,159 @@ export default function RemindersScreen({ navigation }: Props) {
 
       return matchesFilter && matchesSearch;
     });
-  }, [tasks, search, activeFilter]);
+  }, [tasks, archivedTasks, search, activeFilter]);
+  
+    const completeTask = async (taskId: string) => {
+    try {
+      const session = await getSession();
 
+      if (!session?.token) {
+        throw new Error('No se encontró una sesión activa.');
+      }
+
+      await apiRequest(`/tasks/${taskId}/complete`, {
+        method: 'PATCH',
+        token: session.token,
+      });
+
+      await loadTasks(false);
+    } catch (err) {
+      Alert.alert(
+        'No se pudo completar',
+        err instanceof Error ? err.message : 'Inténtalo de nuevo.'
+      );
+    }
+  };
+  const toggleSubtask = async (task: Task, subtaskId: string) => {
+  const updatedSubtasks = (task.subtasks ?? []).map(subtask =>
+    subtask.id === subtaskId
+      ? { ...subtask, completed: !subtask.completed }
+      : subtask
+  );
+
+  try {
+    const session = await getSession();
+
+    if (!session?.token) {
+      throw new Error('No se encontró una sesión activa.');
+    }
+
+    await apiRequest(`/tasks/${task.id}`, {
+      method: 'PATCH',
+      token: session.token,
+      body: JSON.stringify({
+        subtasks: updatedSubtasks,
+      }),
+    });
+
+    await loadTasks(false);
+  } catch (err) {
+    Alert.alert(
+      'No se pudo actualizar la lista',
+      err instanceof Error ? err.message : 'Inténtalo de nuevo.'
+    );
+  }
+};
   const openForm = (type: 'tarea' | 'recordatorio' | 'nota' | 'checklist') => {
     setShowCreateMenu(false);
     navigation.navigate('AddTask', { type });
   };
 
+  const closeTaskActions = () => {
+    setSelectedTask(null);
+  };
+
+  const archiveTask = async () => {
+    if (!selectedTask) return;
+
+    try {
+      const session = await getSession();
+
+      if (!session?.token) {
+        throw new Error('No se encontró una sesión activa.');
+      }
+
+      await apiRequest(`/tasks/${selectedTask.id}/archive`, {
+        method: 'PATCH',
+        token: session.token,
+      });
+
+      setSelectedTask(null);
+      await loadTasks(false);
+    } catch (err) {
+      Alert.alert(
+        'No se pudo archivar',
+        err instanceof Error ? err.message : 'Inténtalo de nuevo.'
+      );
+    }
+  };
+
+  const restoreSelectedTask = async () => {
+    if (!selectedTask) return;
+
+    try {
+      const session = await getSession();
+
+      if (!session?.token) {
+        throw new Error('No se encontró una sesión activa.');
+      }
+
+      await apiRequest(`/tasks/${selectedTask.id}/restore`, {
+        method: 'PATCH',
+        token: session.token,
+      });
+
+      setSelectedTask(null);
+      await loadTasks(false);
+    } catch (err) {
+      Alert.alert(
+        'No se pudo restaurar',
+        err instanceof Error ? err.message : 'Inténtalo de nuevo.'
+      );
+    }
+  };
+  const deleteSelectedTask = () => {
+    if (!selectedTask) return;
+
+    const taskToDelete = selectedTask;
+
+    Alert.alert(
+      'Eliminar actividad',
+      `¿Seguro que deseas eliminar "${taskToDelete.title}"? Esta acción no se puede deshacer.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const session = await getSession();
+
+              if (!session?.token) {
+                throw new Error('No se encontró una sesión activa.');
+              }
+
+              await apiRequest(`/tasks/${taskToDelete.id}`, {
+                method: 'DELETE',
+                token: session.token,
+              });
+
+              setSelectedTask(null);
+              await loadTasks(false);
+            } catch (err) {
+              Alert.alert(
+                'No se pudo eliminar',
+                err instanceof Error ? err.message : 'Inténtalo de nuevo.'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
   const renderTaskCard = (task: Task) => {
     const category = getTaskCategory(task);
     const completed = task.status === 'realizada';
@@ -177,25 +343,82 @@ export default function RemindersScreen({ navigation }: Props) {
       },
     }[category];
 
+    const cardPalette = {
+      tarea: {
+        gradient: ['#81243D', '#64172C', '#3B101D'] as const,
+        accent: '#D18A9C', border: '#8C4056',
+        text: '#F4E4E8', muted: '#D7B8C1', soft: '#C79AA7',
+        pending: '#E6A0B0', progress: '#D27A91', completed: '#C9AEB7',
+        iconBg: '#4E1A2A', buttonBg: '#4E1525',
+      },
+      recordatorio: {
+        gradient: ['#63303F', '#4A202D', '#32151E'] as const,
+        accent: '#C58A98', border: '#79404F',
+        text: '#F0E1E4', muted: '#D2B6BC', soft: '#B9959E',
+        pending: '#D9A0AA', progress: '#C77D8D', completed: '#C6ADB3',
+        iconBg: '#48232D', buttonBg: '#40202A',
+      },
+      nota: {
+        gradient: ['#624657', '#493242', '#30202D'] as const,
+        accent: '#D0A5BA', border: '#866176',
+        text: '#F1E5EB', muted: '#D9C3CE', soft: '#C1A4B3',
+        pending: '#D6A9C0', progress: '#C18DAA', completed: '#CDBBC5',
+        iconBg: '#493344', buttonBg: '#3B2938',
+      },
+      checklist: {
+        gradient: ['#572A49', '#3D1C35', '#24101F'] as const,
+        accent: '#C29AB8', border: '#74445F',
+        text: '#F0E3EC', muted: '#D4BDCE', soft: '#BDA0B5',
+        pending: '#D1A4C1', progress: '#B989AA', completed: '#C8B5C4',
+        iconBg: '#40243A', buttonBg: '#321B2D',
+      },
+    }[category];
+
     return (
-      <View key={task.id} style={styles.taskCard}>
+      <Pressable
+        key={task.id}
+        delayLongPress={700}
+        onLongPress={() => {
+
+          setShowCreateMenu(false);
+          setSelectedTask(task);
+        }}
+      >
+      <LinearGradient
+        style={[
+          styles.taskCard,
+          {
+            borderColor: cardPalette.border,
+            backgroundColor: cardPalette.gradient[0],
+          },
+        ]}
+        colors={cardPalette.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
         <View style={styles.cardTop}>
           <View style={styles.categoryRow}>
-            <View style={styles.categoryIcon}>
+            <View style={[styles.categoryIcon, { backgroundColor: cardPalette.iconBg, borderColor: cardPalette.border, borderWidth: 1 }]}>
               <Lucide
                 name={categoryInfo.icon}
                 size={16}
-                color={COLORS.brightWine}
+                color={cardPalette.accent}
               />
             </View>
-            <Text style={styles.categoryLabel}>
+            <Text style={[styles.categoryLabel, { color: cardPalette.accent }]}>
               {categoryInfo.label}
             </Text>
           </View>
 
           <View style={[
             styles.statusDot,
-            completed && styles.statusDotCompleted,
+            {
+              backgroundColor: completed
+                ? cardPalette.completed
+                : task.status === 'en_curso'
+                  ? cardPalette.progress
+                  : cardPalette.pending,
+            },
           ]} />
         </View>
 
@@ -212,6 +435,7 @@ export default function RemindersScreen({ navigation }: Props) {
           </Text>
         )}
 
+        
         {category === 'checklist' && (
           <View style={styles.checklistProgress}>
             <View style={styles.checklistProgressText}>
@@ -233,39 +457,147 @@ export default function RemindersScreen({ navigation }: Props) {
                 ]}
               />
             </View>
+
+            <View style={styles.subtaskList}>
+              {task.subtasks?.map(subtask => (
+                <Pressable
+                  key={subtask.id}
+                  style={styles.subtaskRow}
+                  onPress={() => toggleSubtask(task, subtask.id)}
+                >
+                  <Lucide
+                    name={subtask.completed ? 'circle-check' : 'circle'}
+                    size={19}
+                    color={subtask.completed ? '#F9D1D7' : '#D8BFBC'}
+                  />
+
+                  <Text
+                    style={[
+                      styles.subtaskText,
+                      subtask.completed && styles.subtaskCompleted,
+                    ]}
+                  >
+                    {subtask.title}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         )}
+
 
         <View style={styles.cardFooter}>
           <View style={styles.dateRow}>
             <Lucide
               name="calendar-days"
               size={14}
-              color={COLORS.soft}
+              color={cardPalette.soft}
             />
-            <Text style={styles.dateText}>
+            <Text style={[styles.dateText, { color: cardPalette.soft }]}>
               {formatDate(task.dueDate)}
             </Text>
           </View>
 
           {task.dueTime && (
             <View style={styles.dateRow}>
-              <Lucide name="clock-3" size={14} color={COLORS.soft} />
-              <Text style={styles.dateText}>{task.dueTime}</Text>
+              <Lucide name="clock-3" size={14} color={cardPalette.soft} />
+              <Text style={[styles.dateText, { color: cardPalette.soft }]}>{task.dueTime}</Text>
             </View>
           )}
 
           <Text style={[
             styles.stateText,
-            completed && styles.completedState,
+            {
+              color: completed
+                ? cardPalette.completed
+                : task.status === 'en_curso'
+                  ? cardPalette.progress
+                  : cardPalette.pending,
+            },
           ]}>
-            {completed ? 'COMPLETADA' : 'PENDIENTE'}
+            {completed
+              ? 'COMPLETADA'
+              : task.status === 'en_curso'
+                ? 'EN CURSO'
+                : 'PENDIENTE'}
           </Text>
         </View>
-      </View>
+                <View style={styles.cardActions}>
+          <Pressable
+            style={[
+              styles.editButton,
+              {
+                backgroundColor: cardPalette.iconBg,
+                borderColor: cardPalette.border,
+              },
+            ]}
+            onPress={() =>
+              navigation.navigate('AddTask', {
+              type: category === 'checklist' ? 'checklist' : task.type,
+              taskId: task.id,
+              })
+            }
+          >
+            <Lucide name="pencil" size={15} color={cardPalette.accent} />
+            <Text style={[styles.editButtonText, { color: cardPalette.accent }]}>Editar</Text>
+          </Pressable>
+                    {!completed && (
+            <Pressable
+              style={[
+                styles.completeButton,
+                {
+                  backgroundColor: cardPalette.accent,
+                  borderColor: cardPalette.accent,
+                },
+              ]}
+              onPress={() => completeTask(task.id)}
+            >
+              <Lucide name="check" size={15} color={cardPalette.gradient[2]} />
+              <Text style={[styles.completeButtonText, { color: cardPalette.gradient[2] }]}>Completar</Text>
+            </Pressable>
+          )}
+        </View>
+      </LinearGradient>
+      </Pressable>
     );
   };
 
+  const actionPalette = selectedTask
+    ? ({
+        tarea: {
+          gradient: ['#81243D', '#64172C', '#3B101D'] as const,
+          accent: '#D18A9C',
+          border: '#8C4056',
+          text: '#F4E4E8',
+          muted: '#D7B8C1',
+          buttonBg: '#4E1525',
+        },
+        recordatorio: {
+          gradient: ['#63303F', '#4A202D', '#32151E'] as const,
+          accent: '#C58A98',
+          border: '#79404F',
+          text: '#F0E1E4',
+          muted: '#D2B6BC',
+          buttonBg: '#40202A',
+        },
+        nota: {
+          gradient: ['#624657', '#493242', '#30202D'] as const,
+          accent: '#D0A5BA',
+          border: '#866176',
+          text: '#F1E5EB',
+          muted: '#D9C3CE',
+          buttonBg: '#3B2938',
+        },
+        checklist: {
+          gradient: ['#572A49', '#3D1C35', '#24101F'] as const,
+          accent: '#C29AB8',
+          border: '#74445F',
+          text: '#F0E3EC',
+          muted: '#D4BDCE',
+          buttonBg: '#321B2D',
+        },
+      })[getTaskCategory(selectedTask)]
+    : null;
   return (
     <View style={styles.container}>
       <ScrollView
@@ -280,87 +612,167 @@ export default function RemindersScreen({ navigation }: Props) {
         }
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>TU ESPACIO PERSONAL</Text>
-            <Text style={styles.title}>Mi libreta</Text>
+          <View style={styles.headerText}>
+            <View style={styles.headerTitleRow}>
+              <View style={styles.headerTitleBar} />
+              <Text style={styles.headerTitle}>
+                MI <Text style={styles.headerTitleAccent}>LIBRETA</Text>
+              </Text>
+            </View>
             <Text style={styles.subtitle}>
               Tus ideas y pendientes, organizados en un solo lugar.
             </Text>
           </View>
 
-          <View style={styles.headerIcon}>
-            <Lucide
-              name="notebook-pen"
-              size={25}
-              color={COLORS.brightWine}
-            />
+          <View style={styles.headerActionsPosition}>
+            <HeaderActions />
           </View>
         </View>
-
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{counts.nota}</Text>
-            <Text style={styles.statLabel}>NOTAS</Text>
+<View style={styles.summarySection}>
+          <View style={styles.summaryHeader}>
+            <Text style={styles.summaryTitle}>RESUMEN DE MI LIBRETA</Text>
           </View>
 
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{counts.recordatorio}</Text>
-            <Text style={styles.statLabel}>RECORDATORIOS</Text>
-          </View>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryStat}>
+              <View style={styles.summaryIcon}>
+                <Lucide name="clipboard-list" size={19} color="#AA0330" />
+              </View>
+              <Text style={styles.summaryNumber}>{counts.tarea}</Text>
+              <Text style={[styles.summaryLabel, { color: '#AA0330' }]}>
+                TAREAS
+              </Text>
+            </View>
 
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{counts.checklist}</Text>
-            <Text style={styles.statLabel}>LISTAS</Text>
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.summaryStat}>
+              <View style={styles.summaryIcon}>
+                <Lucide name="bell" size={19} color="#D17A91" />
+              </View>
+              <Text style={styles.summaryNumber}>{counts.recordatorio}</Text>
+              <Text style={[styles.summaryLabel, { color: '#D17A91' }]}>
+                RECORDATORIOS
+              </Text>
+            </View>
+
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.summaryStat}>
+              <View style={styles.summaryIcon}>
+                <Lucide name="notebook-pen" size={19} color="#C9B8B1" />
+              </View>
+              <Text style={styles.summaryNumber}>
+                {counts.nota + counts.checklist}
+              </Text>
+              <Text style={[styles.summaryLabel, { color: '#C9B8B1' }]}>
+                NOTAS Y LISTAS
+              </Text>
+            </View>
           </View>
         </View>
-
-        <View style={styles.sectionHeading}>
+<View style={styles.sectionHeading}>
           <Text style={styles.sectionTitle}>TU CONTENIDO</Text>
           <Text style={styles.totalLabel}>
             {tasks.length} {tasks.length === 1 ? 'elemento' : 'elementos'}
           </Text>
         </View>
 
-        <View style={styles.searchBox}>
-          <Lucide name="search" size={19} color={COLORS.soft} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Buscar en mi libreta..."
-            placeholderTextColor={COLORS.soft}
-            style={styles.searchInput}
-          />
-          {!!search && (
-            <Pressable onPress={() => setSearch('')}>
-              <Lucide name="x" size={18} color={COLORS.muted} />
-            </Pressable>
-          )}
+        <View style={styles.searchRow}>
+          <View style={styles.search}>
+            <Lucide name="search" size={17} color={COLORS.brightWine} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar en mi libreta..."
+              placeholderTextColor={COLORS.soft}
+              style={styles.searchInput}
+            />
+            {!!search && (
+              <Pressable onPress={() => setSearch('')}>
+                <Lucide name="x" size={17} color={COLORS.muted} />
+              </Pressable>
+            )}
+          </View>
+
+          <Pressable
+            style={styles.filterButton}
+            onPress={() => setFiltersOpen(open => !open)}
+          >
+            <Lucide name="funnel" size={16} color={COLORS.brightWine} />
+            <Text style={styles.filterButtonText}>Filtrar</Text>
+            <Lucide
+              name={filtersOpen ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={COLORS.brightWine}
+            />
+          </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
-          {FILTERS.map(filter => (
-            <Pressable
-              key={filter.id}
-              onPress={() => setActiveFilter(filter.id)}
-              style={[
-                styles.filterChip,
-                activeFilter === filter.id && styles.filterChipActive,
-              ]}
-            >
-              <Text style={[
-                styles.filterText,
-                activeFilter === filter.id && styles.filterTextActive,
-              ]}>
-                {filter.label}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
 
+        {filtersOpen && (
+          <View style={styles.filterPanel}>
+            <Text style={styles.filterPanelTitle}>
+              FILTRAR MI LIBRETA
+            </Text>
+
+            <Text style={styles.filterPanelSubtitle}>
+              CATEGORÍAS
+            </Text>
+
+            <View style={styles.filterOptions}>
+              {FILTERS.map(filter => {
+                const isActive = activeFilter === filter.id;
+                const count =
+                  filter.id === 'todo'
+                    ? tasks.length
+                    : filter.id === 'archivados'
+                      ? archivedTasks.length
+                      : counts[filter.id];
+
+                return (
+                  <Pressable
+                    key={filter.id}
+                    onPress={() => setActiveFilter(filter.id)}
+                    style={[
+                      styles.filterOption,
+                      isActive && styles.filterOptionActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterOptionText,
+                        isActive && styles.filterOptionTextActive,
+                      ]}
+                    >
+                      {filter.label}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.filterOptionCount,
+                        isActive && styles.filterOptionTextActive,
+                      ]}
+                    >
+                      {count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {activeFilter !== 'todo' && (
+              <Pressable
+                style={styles.filterClearButton}
+                onPress={() => setActiveFilter('todo')}
+              >
+                <Text style={styles.filterClearText}>
+                  LIMPIAR FILTROS
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         <View style={styles.listHeading}>
           <Text style={styles.sectionTitle}>
             {activeFilter === 'todo'
@@ -477,6 +889,136 @@ export default function RemindersScreen({ navigation }: Props) {
         </Pressable>
       )}
 
+      <Modal
+        visible={selectedTask !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeTaskActions}
+      >
+        <View style={styles.taskActionOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closeTaskActions}
+          />
+
+          {selectedTask && actionPalette && (
+            <LinearGradient
+              style={[
+                styles.taskActionPanel,
+                { borderColor: actionPalette.border },
+              ]}
+              colors={actionPalette.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.taskActionHeader}>
+                <Lucide
+                  name="archive"
+                  size={21}
+                  color={actionPalette.accent}
+                />
+                <Text
+                  style={[
+                    styles.taskActionEyebrow,
+                    { color: actionPalette.accent },
+                  ]}
+                >
+                  GESTIONAR ACTIVIDAD
+                </Text>
+              </View>
+
+              <Text
+                style={[
+                  styles.taskActionTitle,
+                  { color: actionPalette.text },
+                ]}
+                numberOfLines={2}
+              >
+                {selectedTask.title}
+              </Text>
+
+              <Text
+                style={[
+                  styles.taskActionDescription,
+                  { color: actionPalette.muted },
+                ]}
+              >
+                ¿Qué deseas hacer con este contenido?
+              </Text>
+
+              {activeFilter === 'archivados' ? (
+                <Pressable
+                  style={[
+                    styles.taskActionButton,
+                    {
+                      backgroundColor: actionPalette.buttonBg,
+                      borderColor: actionPalette.border,
+                    },
+                  ]}
+                  onPress={restoreSelectedTask}
+                >
+                  <Lucide name="archive-restore" size={18} color={actionPalette.accent} />
+                  <Text
+                    style={[
+                      styles.taskActionButtonText,
+                      { color: actionPalette.text },
+                    ]}
+                  >
+                    Restaurar
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[
+                    styles.taskActionButton,
+                    {
+                      backgroundColor: actionPalette.buttonBg,
+                      borderColor: actionPalette.border,
+                    },
+                  ]}
+                  onPress={archiveTask}
+                >
+                  <Lucide name="archive" size={18} color={actionPalette.accent} />
+                  <Text
+                    style={[
+                      styles.taskActionButtonText,
+                      { color: actionPalette.text },
+                    ]}
+                  >
+                    Archivar
+                  </Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                style={[
+                  styles.taskActionButton,
+                  styles.taskDeleteButton,
+                  { borderColor: actionPalette.border },
+                ]}
+                onPress={deleteSelectedTask}
+              >
+                <Lucide name="trash-2" size={18} color="#E6A0B0" />
+                <Text
+                  style={[
+                    styles.taskActionButtonText,
+                    { color: '#F0C5CE' },
+                  ]}
+                >
+                  Eliminar
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.taskCancelButton}
+                onPress={closeTaskActions}
+              >
+                <Text style={styles.taskCancelText}>Cancelar</Text>
+              </Pressable>
+            </LinearGradient>
+          )}
+        </View>
+      </Modal>
       <Pressable
         style={styles.fab}
         onPress={() => setShowCreateMenu(current => !current)}
@@ -499,40 +1041,44 @@ export default function RemindersScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+    headerActionsPosition: {
+    transform: [{ translateY: 70 }],
+  },
+container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
   content: {
-    paddingHorizontal: 22,
-    paddingTop: 58,
+    paddingHorizontal: 20,
+    paddingTop: 56,
     paddingBottom: 125,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 25,
+    gap: 12,
+    marginBottom: 20,
   },
   eyebrow: {
     color: COLORS.brightWine,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.body,
     fontSize: 10,
-    letterSpacing: 2,
-    marginBottom: 7,
+    letterSpacing: 1,
+    marginBottom: 2,
+    marginTop: 8,
   },
   title: {
     color: COLORS.text,
     fontFamily: FONTS.title,
-    fontSize: 35,
+    fontSize: 45,
+    marginTop: 5,
+    maxWidth: 270,
   },
   subtitle: {
     color: COLORS.muted,
     fontFamily: FONTS.body,
-    fontSize: 13,
-    marginTop: 5,
-    maxWidth: 270,
-    lineHeight: 19,
+    fontSize: 12,
+    marginTop: 6,
   },
   headerIcon: {
     width: 51,
@@ -544,34 +1090,195 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 30,
-  },
-  statCard: {
+  headerText: {
     flex: 1,
-    minHeight: 91,
-    backgroundColor: COLORS.card,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 15,
-    padding: 13,
-    justifyContent: 'center',
   },
-  statNumber: {
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitleBar: {
+    width: 3,
+    height: 26,
+    backgroundColor: COLORS.brightWine,
+  },
+  headerTitle: {
     color: COLORS.text,
     fontFamily: FONTS.title,
-    fontSize: 27,
-  },
-  statLabel: {
-    color: COLORS.soft,
-    fontFamily: FONTS.medium,
-    fontSize: 8,
+    fontSize: 30,
     letterSpacing: 1,
-    marginTop: 4,
   },
-  sectionHeading: {
+  headerTitleAccent: {
+    color: COLORS.brightWine,
+  },
+  summarySection: {
+    marginTop: 2,
+    marginBottom: 18,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 3,
+  },
+  summaryTitle: {
+    color: COLORS.text,
+    fontFamily: FONTS.title,
+    fontSize: 17,
+    letterSpacing: 1,
+  },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#210A13',
+    borderWidth: 1,
+    borderColor: '#572033',
+    borderRadius: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 5,
+  },
+  summaryStat: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    paddingHorizontal: 2,
+  },
+  summaryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#451025',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  summaryNumber: {
+    color: COLORS.text,
+    fontFamily: FONTS.title,
+    fontSize: 25,
+  },
+  summaryLabel: {
+    fontFamily: FONTS.bodyBold,
+    fontSize: 9,
+    textAlign: 'center',
+  },
+  summaryDivider: {
+    width: 1,
+    height: 48,
+    backgroundColor: '#572033',
+  },searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  search: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.brightWine,
+    backgroundColor: COLORS.darkWine,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.brightWine,
+    backgroundColor: COLORS.darkWine,
+  },
+  filterPanel: {
+    backgroundColor: '#1D0A12',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#572033',
+    padding: 15,
+    marginBottom: 18,
+  },
+  filterPanelTitle: {
+    color: COLORS.text,
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 22,
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  filterPanelSubtitle: {
+    color: COLORS.brightWine,
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 14,
+    letterSpacing: 0.8,
+    marginTop: 13,
+    marginBottom: 9,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 9,
+  },
+  filterOption: {
+    width: '48%',
+    minHeight: 42,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#310B19',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  filterOptionActive: {
+    backgroundColor: '#800427',
+    borderColor: '#AA0330',
+  },
+  filterOptionText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterOptionTextActive: {
+    color: COLORS.text,
+  },
+  filterOptionCount: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  filterClearButton: {
+    alignSelf: 'center',
+    marginTop: 17,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: '#800427',
+    borderWidth: 1,
+    borderColor: '#AA0330',
+  },
+  filterClearText: {
+    color: COLORS.text,
+    fontFamily: 'BebasNeue_400Regular',
+    fontSize: 14,
+    letterSpacing: 1,
+  },  filterButtonText: {
+    color: COLORS.text,
+    fontFamily: FONTS.bodyBold,
+    fontSize: 12,
+  },
+sectionHeading: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -579,7 +1286,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: COLORS.text,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 12,
     letterSpacing: 1.3,
   },
@@ -625,7 +1332,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: COLORS.muted,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 11,
   },
   filterTextActive: {
@@ -643,6 +1350,44 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 16,
+  },
+    cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 12,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  editButtonText: {
+    color: COLORS.brightWine,
+    fontFamily: FONTS.bodyBold,
+    fontSize: 12,
+  },
+  completeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#4E021A',
+    borderWidth: 1,
+    borderColor: '#800427',
+  },
+  completeButtonText: {
+    color: '#E9DDD3',
+    fontFamily: FONTS.bodyBold,
+    fontSize: 12,
   },
   cardTop: {
     flexDirection: 'row',
@@ -665,7 +1410,7 @@ const styles = StyleSheet.create({
   },
   categoryLabel: {
     color: COLORS.brightWine,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 9,
     letterSpacing: 1,
   },
@@ -673,14 +1418,17 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 5,
-    backgroundColor: COLORS.orange,
+    backgroundColor: '#F0788B',
+  },
+  statusDotInProgress: {
+    backgroundColor: '#DB324C',
   },
   statusDotCompleted: {
-    backgroundColor: '#8A9B78',
+    backgroundColor: '#D8BFBC',
   },
   taskTitle: {
     color: COLORS.text,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 16,
     lineHeight: 22,
   },
@@ -704,13 +1452,13 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     color: COLORS.soft,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 9,
     letterSpacing: 0.7,
   },
   progressNumber: {
     color: COLORS.text,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 10,
   },
   progressTrack: {
@@ -723,6 +1471,33 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: COLORS.brightWine,
     borderRadius: 5,
+  },
+    subtaskList: {
+    marginTop: 12,
+    gap: 9,
+  },
+  subtaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 5,
+  },
+  starIcon: {
+    width: 22,
+    textAlign: 'center',
+    fontSize: 21,
+    color: COLORS.brightWine,
+    fontFamily: FONTS.bodyBold,
+  },
+  subtaskText: {
+    flex: 1,
+    color: COLORS.text,
+    fontFamily: FONTS.body,
+    fontSize: 13,
+  },
+  subtaskCompleted: {
+    color: COLORS.soft,
+    textDecorationLine: 'line-through',
   },
   cardFooter: {
     flexDirection: 'row',
@@ -746,12 +1521,15 @@ const styles = StyleSheet.create({
   },
   stateText: {
     color: COLORS.orange,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 9,
     marginLeft: 'auto',
   },
+  inProgressState: {
+    color: '#DB324C',
+  },
   completedState: {
-    color: '#A4B48F',
+    color: '#D8BFBC',
   },
   messageContainer: {
     alignItems: 'center',
@@ -774,7 +1552,7 @@ const styles = StyleSheet.create({
   },
   retryText: {
     color: COLORS.text,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 10,
     letterSpacing: 0.8,
   },
@@ -798,7 +1576,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: COLORS.text,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 15,
     textAlign: 'center',
   },
@@ -811,14 +1589,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   menuBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
     paddingHorizontal: 18,
     paddingBottom: 100,
   },
   createMenu: {
-    backgroundColor: COLORS.cardLight,
+    backgroundColor: '#35101D',
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 21,
@@ -843,7 +1621,7 @@ const styles = StyleSheet.create({
   },
   menuOptionTitle: {
     color: COLORS.text,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bodyBold,
     fontSize: 13,
   },
   menuOptionDescription: {
@@ -852,10 +1630,74 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 3,
   },
-  fab: {
+  taskActionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.74)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 26,
+  },
+  taskActionPanel: {
+    width: '100%',
+    maxWidth: 390,
+    borderRadius: 23,
+    borderWidth: 1,
+    padding: 22,
+    overflow: 'hidden',
+    elevation: 15,
+  },
+  taskActionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 17,
+  },
+  taskActionEyebrow: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  taskActionTitle: {
+    fontFamily: FONTS.title,
+    fontSize: 25,
+    marginBottom: 7,
+  },
+  taskActionDescription: {
+    fontFamily: FONTS.body,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  taskActionButton: {
+    minHeight: 49,
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  taskDeleteButton: {
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  taskActionButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+  },
+  taskCancelButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 2,
+  },
+  taskCancelText: {
+    color: '#D7B8C1',
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+  },  fab: {
     position: 'absolute',
     right: 23,
-    bottom: 91,
+    bottom: 106,
     width: 55,
     height: 55,
     borderRadius: 19,
@@ -869,3 +1711,26 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

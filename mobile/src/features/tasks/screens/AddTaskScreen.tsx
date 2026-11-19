@@ -1,8 +1,10 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -13,7 +15,6 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Lucide } from '@react-native-vector-icons/lucide';
-import HeaderActions from '../../../components/HeaderActions';
 
 import type { RootStackParamList } from '../../../navigation/AppNavigator';
 import { FONTS } from '../../../core/theme/fonts';
@@ -30,15 +31,17 @@ function OptionChip({
   label,
   selected,
   onPress,
+  accentColor,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  accentColor: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.chip, selected && styles.chipSelected]}
+      style={[styles.chip, selected && { backgroundColor: accentColor, borderColor: accentColor }]}
     >
       <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
         {label}
@@ -49,6 +52,8 @@ function OptionChip({
 
 export default function AddTaskScreen({ navigation, route }: Props) {
   const formMode = route.params?.type ?? 'tarea';
+  const taskId = route.params?.taskId;
+  const isEditing = Boolean(taskId);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subtasks, setSubtasks] = useState<
@@ -60,13 +65,70 @@ const [newSubtask, setNewSubtask] = useState('');
     ? 'tarea'
     : formMode
 );
+  const paletteCategory =
+    formMode === 'checklist'
+      ? 'checklist'
+      : formMode === 'nota'
+        ? 'nota'
+        : formMode === 'recordatorio' || type === 'recordatorio'
+          ? 'recordatorio'
+          : 'tarea';
+
+  const palette = paletteCategory === 'recordatorio'
+    ? {
+        accent: '#A94B60',
+        border: '#783447',
+        field: '#211017',
+        label: '#DAB4BC',
+        placeholder: '#B18A95',
+      }
+    : paletteCategory === 'nota'
+      ? {
+          accent: '#C28DA5',
+          border: '#80666C',
+          field: '#1E1119',
+          label: '#D6B9C7',
+          placeholder: '#B99AA9',
+        }
+      : paletteCategory === 'checklist'
+        ? {
+            accent: '#80666C',
+            border: '#572033',
+            field: '#170A11',
+            label: '#C9B0BE',
+            placeholder: '#A98A9A',
+          }
+        : {
+            accent: '#AA0330',
+            border: '#800427',
+            field: '#1B080F',
+            label: '#E9B8C4',
+            placeholder: '#C99AA8',
+          };
+
   const [priority, setPriority] = useState<TaskPriority>('media');
+  const [status, setStatus] = useState<
+  'pendiente' | 'en_curso' | 'realizada'
+>('pendiente');
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState('');
   const [dueTime, setDueTime] = useState('');
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+const [timePickerVisible, setTimePickerVisible] = useState(false);
+
+const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+
+const [selectedHour, setSelectedHour] = useState('12');
+const [selectedMinute, setSelectedMinute] = useState('00');
+const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
+const [timeMode, setTimeMode] = useState<'hour' | 'minute'>('hour');
+const timeModeRef = useRef(timeMode);
+useEffect(() => { timeModeRef.current = timeMode; }, [timeMode]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingTask, setLoadingTask] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +159,73 @@ const [newSubtask, setNewSubtask] = useState('');
       active = false;
     };
   }, []);
+    useEffect(() => {
+    if (!taskId) return;
+
+    let active = true;
+
+    async function loadTask() {
+      try {
+        setLoadingTask(true);
+
+        const session = await getSession();
+
+        if (!session?.token) {
+          throw new Error('No se encontró una sesión activa.');
+        }
+
+        const response = await apiRequest<{
+          task: {
+            title: string;
+            description: string;
+            status: 'pendiente' | 'en_curso' | 'realizada';
+            type: TaskType;
+            priority: TaskPriority;
+            subjectId: string | null;
+            dueDate: string | null;
+            dueTime: string | null;
+            subtasks: {
+              id: string;
+              title: string;
+              completed: boolean;
+            }[];
+          };
+        }>(`/tasks/${taskId}`, {
+          method: 'GET',
+          token: session.token,
+        });
+
+        if (!active) return;
+
+        const task = response.task;
+
+        setTitle(task.title);
+        setDescription(task.description ?? '');
+        setType(task.type);
+        setPriority(task.priority);
+        setSubjectId(task.subjectId);
+        setDueDate(task.dueDate ?? '');
+        setDueTime(task.dueTime ?? '');
+        setSubtasks(task.subtasks ?? []);
+        setStatus(task.status);
+      } catch (error) {
+        if (active) {
+          Alert.alert(
+            'No se pudo cargar',
+            error instanceof Error ? error.message : 'Inténtalo de nuevo.'
+          );
+        }
+      } finally {
+        if (active) setLoadingTask(false);
+      }
+    }
+
+    loadTask();
+
+    return () => {
+      active = false;
+    };
+  }, [taskId]);
 
   const addSubtask = () => {
   const cleanTitle = newSubtask.trim();
@@ -114,6 +243,104 @@ const [newSubtask, setNewSubtask] = useState('');
 
   setNewSubtask('');
 };
+  const openDatePicker = () => {
+    if (dueDate && /^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+      const [year, month] = dueDate.split('-').map(Number);
+      setCalendarYear(year);
+      setCalendarMonth(month - 1);
+    }
+
+    setDatePickerVisible(true);
+  };
+
+  const changeCalendarMonth = (amount: number) => {
+    const newDate = new Date(calendarYear, calendarMonth + amount, 1);
+
+    setCalendarMonth(newDate.getMonth());
+    setCalendarYear(newDate.getFullYear());
+  };
+
+  const selectCalendarDate = (day: number) => {
+    const formattedDate =
+      `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    setDueDate(formattedDate);
+    setDatePickerVisible(false);
+  };
+
+  const openTimePicker = () => {
+    if (dueTime && /^\d{2}:\d{2}$/.test(dueTime)) {
+      const [hour, minute] = dueTime.split(':').map(Number);
+      setSelectedHour(String(hour % 12 || 12).padStart(2, '0'));
+      setSelectedMinute(String(minute).padStart(2, '0'));
+      setPeriod(hour >= 12 ? 'PM' : 'AM');
+    }
+
+    setTimeMode('hour');
+    setTimePickerVisible(true);
+  };
+
+  const confirmTime = () => {
+    let hour24 = Number(selectedHour) % 12;
+
+    if (period === 'PM') {
+      hour24 += 12;
+    }
+
+    setDueTime(
+      `${String(hour24).padStart(2, '0')}:${selectedMinute}`
+    );
+    setTimePickerVisible(false);
+  };
+  const updateClockFromTouch = (x: number, y: number) => {
+    const center = 130;
+    const dx = x - center;
+    const dy = y - center;
+
+    const angle = Math.atan2(dy, dx) + Math.PI / 2;
+    const normalizedAngle = (angle + Math.PI * 2) % (Math.PI * 2);
+
+    if (timeModeRef.current === 'hour') {
+      const index = Math.round(normalizedAngle / (Math.PI / 6)) % 12;
+      const hour = index === 0 ? 12 : index;
+
+      setSelectedHour(String(hour).padStart(2, '0'));
+    } else {
+      // Cada grado representa un minuto: 00 hasta 59.
+      const minute = Math.round(
+        normalizedAngle / (Math.PI * 2) * 60
+      ) % 60;
+
+      setSelectedMinute(String(minute).padStart(2, '0'));
+    }
+  };
+
+  const clockTouchStart = useRef({ x: 130, y: 130 });
+
+  const clockPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+
+      onPanResponderGrant: (event) => {
+        const { locationX, locationY } = event.nativeEvent;
+
+        clockTouchStart.current = {
+          x: locationX,
+          y: locationY,
+        };
+
+        updateClockFromTouch(locationX, locationY);
+      },
+
+      onPanResponderMove: (_, gestureState) => {
+        const x = clockTouchStart.current.x + gestureState.dx;
+        const y = clockTouchStart.current.y + gestureState.dy;
+
+        updateClockFromTouch(x, y);
+      },
+    })
+  ).current;
   const saveTask = async () => {
     if (!title.trim()) {
       Alert.alert('Falta el título', 'Escribe el nombre de la actividad.');
@@ -138,24 +365,29 @@ const [newSubtask, setNewSubtask] = useState('');
         throw new Error('No se encontró una sesión activa.');
       }
 
-      await apiRequest('/tasks', {
-        method: 'POST',
+      await apiRequest(isEditing ? `/tasks/${taskId}` : '/tasks', {
+        method: isEditing ? 'PATCH' : 'POST',
         token: session.token,
         body: JSON.stringify({
           title: title.trim(),
           description: description.trim(),
           type,
           priority,
+          status,
           subjectId,
           dueDate: dueDate || null,
           dueTime: dueTime || null,
-          subtasks: formMode === 'checklist' ? subtasks : [],
+          subtasks: subtasks,
         }),
       });
 
-      Alert.alert('Actividad creada', 'Se guardó correctamente.', [
-        { text: 'Aceptar', onPress: () => navigation.goBack() },
-      ]);
+Alert.alert(
+  isEditing ? 'Actividad actualizada' : 'Actividad creada',
+  isEditing
+    ? 'Los cambios se guardaron correctamente.'
+    : 'Se guardó correctamente.',
+  [{ text: 'Aceptar', onPress: () => navigation.goBack() }]
+);
     } catch (error) {
       Alert.alert(
         'No se pudo guardar',
@@ -182,10 +414,12 @@ const [newSubtask, setNewSubtask] = useState('');
           </Pressable>
 
           <View style={styles.headerText}>
-  <Text style={styles.eyebrow}>MI LIBRETA</Text>
+  <Text style={[styles.eyebrow, { color: palette.accent }]}>MI LIBRETA</Text>
 
   <Text style={styles.heading}>
-    {formMode === 'nota'
+  {isEditing
+    ? 'Editar actividad'
+    : formMode === 'nota'
       ? 'Nueva nota'
       : formMode === 'recordatorio'
         ? 'Nuevo recordatorio'
@@ -195,23 +429,25 @@ const [newSubtask, setNewSubtask] = useState('');
   </Text>
 
   <Text style={styles.subtitle}>
-    {formMode === 'nota'
-      ? 'Guarda tus ideas y apuntes.'
-      : formMode === 'recordatorio'
-        ? 'No olvides tus próximas actividades.'
-        : formMode === 'checklist'
-          ? 'Organiza tus pendientes paso a paso.'
-          : 'Registra algo que necesitas realizar.'}
+    {isEditing
+  ? 'Guardar cambios'
+  : formMode === 'nota'
+    ? 'Guardar nota'
+    : formMode === 'recordatorio'
+      ? 'Guardar recordatorio'
+      : formMode === 'checklist'
+        ? 'Guardar checklist'
+        : 'Guardar actividad'}
   </Text>
 </View>
 
-          <HeaderActions />
+
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Información general</Text>
+        <View style={[styles.formCard, { borderColor: palette.border }]}>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>Información general</Text>
 
-          <Text style={styles.label}>
+          <Text style={[styles.label, { color: palette.label }]}>
   {formMode === 'nota'
     ? 'Nombre de la nota *'
     : formMode === 'recordatorio'
@@ -230,12 +466,12 @@ const [newSubtask, setNewSubtask] = useState('');
       ? 'Agrega una descripción para tu lista...'
       : 'Describe lo que necesitas realizar...'
 }
-            placeholderTextColor={COLORS.soft}
-            style={styles.input}
+            placeholderTextColor={palette.placeholder}
+            style={[styles.input, { borderColor: palette.border, backgroundColor: palette.field }]}
             maxLength={100}
           />
 
-          <Text style={styles.label}>
+          <Text style={[styles.label, { color: palette.label }]}>
   {formMode === 'nota'
     ? 'Contenido de la nota'
     : formMode === 'checklist'
@@ -246,16 +482,16 @@ const [newSubtask, setNewSubtask] = useState('');
             value={description}
             onChangeText={setDescription}
             placeholder="Agrega detalles (opcional)"
-            placeholderTextColor={COLORS.soft}
-            style={[styles.input, styles.textArea]}
+            placeholderTextColor={palette.placeholder}
+            style={[styles.input, styles.textArea, { borderColor: palette.border, backgroundColor: palette.field }]}
             multiline
             textAlignVertical="top"
           />
                     {formMode === 'checklist' && (
             <>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-              <Text style={styles.sectionTitle}>Elementos de mi lista</Text>
+              <Text style={[styles.sectionTitle, { color: palette.label }]}>Elementos de mi lista</Text>
               <Text style={styles.helper}>
                 Agrega las actividades o pendientes que necesitas completar.
               </Text>
@@ -265,14 +501,14 @@ const [newSubtask, setNewSubtask] = useState('');
                   value={newSubtask}
                   onChangeText={setNewSubtask}
                   placeholder="Escribe un pendiente..."
-                  placeholderTextColor={COLORS.soft}
-                  style={styles.subtaskInput}
+                  placeholderTextColor={palette.placeholder}
+                  style={[styles.subtaskInput, { borderColor: palette.border, backgroundColor: palette.field }]}
                   onSubmitEditing={addSubtask}
                   returnKeyType="done"
                 />
 
                 <Pressable
-                  style={styles.addSubtaskButton}
+                  style={[styles.addSubtaskButton, { backgroundColor: palette.accent }]}
                   onPress={addSubtask}
                 >
                   <Lucide name="plus" size={21} color={COLORS.white} />
@@ -280,38 +516,71 @@ const [newSubtask, setNewSubtask] = useState('');
               </View>
 
               {subtasks.map((item) => (
-                <View key={item.id} style={styles.subtaskItem}>
-                  <Lucide
-                    name="circle"
-                    size={17}
-                    color={COLORS.brightWine}
-                  />
-                  <Text style={styles.subtaskText}>{item.title}</Text>
+  <View key={item.id} style={[styles.subtaskItem, { borderColor: palette.border, backgroundColor: palette.field }]}>
+    <Pressable
+      onPress={() =>
+        setSubtasks((current) =>
+          current.map((subtask) =>
+            subtask.id === item.id
+              ? { ...subtask, completed: !subtask.completed }
+              : subtask
+          )
+        )
+      }
+    >
+      <Lucide
+        name={item.completed ? 'circle-check' : 'circle'}
+        size={19}
+        color={palette.accent}
+      />
+    </Pressable>
 
-                  <Pressable
-                    onPress={() =>
-                      setSubtasks((current) =>
-                        current.filter((subtask) => subtask.id !== item.id)
-                      )
-                    }
-                  >
-                    <Lucide name="x" size={18} color={COLORS.muted} />
-                  </Pressable>
-                </View>
-              ))}
+    <TextInput
+      value={item.title}
+      onChangeText={(value) =>
+        setSubtasks((current) =>
+          current.map((subtask) =>
+            subtask.id === item.id
+              ? { ...subtask, title: value }
+              : subtask
+          )
+        )
+      }
+      placeholder="Nombre del pendiente..."
+      placeholderTextColor={palette.placeholder}
+      style={[
+        styles.subtaskText,
+        item.completed && {
+          color: COLORS.soft,
+          textDecorationLine: 'line-through',
+        },
+      ]}
+    />
+
+    <Pressable
+      onPress={() =>
+        setSubtasks((current) =>
+          current.filter((subtask) => subtask.id !== item.id)
+        )
+      }
+    >
+      <Lucide name="trash-2" size={17} color={COLORS.muted} />
+    </Pressable>
+  </View>
+))}
             </>
           )}
           {formMode === 'tarea' && (
   <>
-    <Text style={styles.label}>Tipo de actividad</Text>
+    <Text style={[styles.label, { color: palette.label }]}>Tipo de actividad</Text>
 
     <View style={styles.optionsRow}>
-      <OptionChip
+      <OptionChip accentColor={palette.accent}
         label="Tarea"
         selected={type === 'tarea'}
         onPress={() => setType('tarea')}
       />
-      <OptionChip
+      <OptionChip accentColor={palette.accent}
         label="Recordatorio"
         selected={type === 'recordatorio'}
         onPress={() => setType('recordatorio')}
@@ -319,45 +588,30 @@ const [newSubtask, setNewSubtask] = useState('');
     </View>
   </>
 )}
-          <View style={styles.optionsRow}>
-            <OptionChip
-              label="Tarea"
-              selected={type === 'tarea'}
-              onPress={() => setType('tarea')}
-            />
-            <OptionChip
-              label="Recordatorio"
-              selected={type === 'recordatorio'}
-              onPress={() => setType('recordatorio')}
-            />
-          </View>
 
-          {formMode !== 'nota' && (
-          <>
-            </>
-)}
-          <Text style={styles.label}>Prioridad</Text>
+
+          <Text style={[styles.label, { color: palette.label }]}>Prioridad</Text>
           <View style={styles.optionsRow}>
-            <OptionChip
+            <OptionChip accentColor={palette.accent}
               label="Baja"
               selected={priority === 'baja'}
               onPress={() => setPriority('baja')}
             />
-            <OptionChip
+            <OptionChip accentColor={palette.accent}
               label="Media"
               selected={priority === 'media'}
               onPress={() => setPriority('media')}
             />
-            <OptionChip
+            <OptionChip accentColor={palette.accent}
               label="Alta"
               selected={priority === 'alta'}
               onPress={() => setPriority('alta')}
             />
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-          <Text style={styles.sectionTitle}>Materia relacionada</Text>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>Materia relacionada</Text>
           <Text style={styles.helper}>
   {formMode === 'nota'
     ? 'Puedes guardar esta nota dentro de una materia o mantenerla personal.'
@@ -369,16 +623,16 @@ const [newSubtask, setNewSubtask] = useState('');
 </Text>
 
           {loadingSubjects ? (
-            <ActivityIndicator color={COLORS.brightWine} style={styles.loader} />
+            <ActivityIndicator color={palette.accent} style={styles.loader} />
           ) : (
             <View style={styles.subjectList}>
-              <OptionChip
+              <OptionChip accentColor={palette.accent}
                 label="Sin materia"
                 selected={subjectId === null}
                 onPress={() => setSubjectId(null)}
               />
               {subjects.map((subject) => (
-                <OptionChip
+                <OptionChip accentColor={palette.accent}
                   key={subject.id}
                   label={subject.name}
                   selected={subjectId === subject.id}
@@ -393,51 +647,316 @@ const [newSubtask, setNewSubtask] = useState('');
             </View>
           )}
 
-                    {formMode !== 'nota' && (
-            <>
-              <View style={styles.divider} />
+            {formMode !== 'nota' && (
+  <>
+    <View style={[styles.divider, { backgroundColor: palette.border }]} />
 
-              <Text style={styles.sectionTitle}>Fecha y hora</Text>
-              <Text style={styles.helper}>
-                Estos datos son opcionales.
-              </Text>
+    <Text style={[styles.sectionTitle, { color: palette.label }]}>Fecha y hora</Text>
+    <Text style={styles.helper}>
+      Estos datos son opcionales.
+    </Text>
 
-              <Text style={styles.label}>
-                {formMode === 'recordatorio'
-                  ? 'Fecha del recordatorio'
-                  : formMode === 'checklist'
-                    ? 'Fecha límite'
-                    : 'Fecha de entrega'}
-              </Text>
+    <Text style={[styles.label, { color: palette.label }]}>
+      {formMode === 'recordatorio'
+        ? 'Fecha del recordatorio'
+        : formMode === 'checklist'
+          ? 'Fecha límite'
+          : 'Fecha de entrega'}
+    </Text>
 
-              <TextInput
-                value={dueDate}
-                onChangeText={setDueDate}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor={COLORS.soft}
-                style={styles.input}
-                keyboardType="numbers-and-punctuation"
-                maxLength={10}
-              />
+    <Pressable
+      style={styles.pickerField}
+      onPress={openDatePicker}
+    >
+      <Text style={[
+        styles.pickerFieldText,
+        !dueDate && styles.pickerPlaceholder
+      ]}>
+        {dueDate || 'Seleccionar fecha'}
+      </Text>
+      <Lucide name="calendar-days" size={20} color={palette.accent} />
+    </Pressable>
 
-              <Text style={styles.label}>Hora</Text>
-              <TextInput
-                value={dueTime}
-                onChangeText={setDueTime}
-                placeholder="HH:MM (ej. 14:30)"
-                placeholderTextColor={COLORS.soft}
-                style={styles.input}
-                keyboardType="numbers-and-punctuation"
-                maxLength={5}
-              />
-            </>
-          )}
+    <Text style={[styles.label, { color: palette.label }]}>Hora</Text>
+
+    <Pressable
+      style={styles.pickerField}
+      onPress={openTimePicker}
+    >
+      <Text style={[
+        styles.pickerFieldText,
+        !dueTime && styles.pickerPlaceholder
+      ]}>
+        {dueTime || 'Seleccionar hora'}
+      </Text>
+      <Lucide name="clock-3" size={21} color={palette.accent} />
+    </Pressable>
+  </>
+)}
+
 
         </View>
 
 
+        <Modal
+          visible={datePickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDatePickerVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.pickerModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Selecciona una fecha</Text>
+                <Pressable onPress={() => setDatePickerVisible(false)}>
+                  <Lucide name="x" size={22} color={COLORS.text} />
+                </Pressable>
+              </View>
+
+              <View style={styles.monthHeader}>
+                <Pressable
+                  style={styles.monthArrow}
+                  onPress={() => changeCalendarMonth(-1)}
+                >
+                  <Lucide name="chevron-left" size={22} color={COLORS.text} />
+                </Pressable>
+
+                <Text style={styles.monthTitle}>
+                  {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre',
+                    'Diciembre'][calendarMonth]} {calendarYear}
+                </Text>
+
+                <Pressable
+                  style={styles.monthArrow}
+                  onPress={() => changeCalendarMonth(1)}
+                >
+                  <Lucide name="chevron-right" size={22} color={COLORS.text} />
+                </Pressable>
+              </View>
+
+              <View style={styles.calendarGrid}>
+                {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
+                  <View key={`weekday-${index}`} style={styles.calendarCell}>
+                    <Text style={styles.weekdayText}>{day}</Text>
+                  </View>
+                ))}
+
+                {Array.from(
+                  { length: new Date(calendarYear, calendarMonth, 1).getDay() },
+                  (_, index) => (
+                    <View
+                      key={`empty-${index}`}
+                      style={styles.calendarCell}
+                    />
+                  )
+                )}
+
+                {Array.from(
+                  { length: new Date(calendarYear, calendarMonth + 1, 0).getDate() },
+                  (_, index) => {
+                    const day = index + 1;
+                    const dateValue =
+                      `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const selected = dueDate === dateValue;
+
+                    return (
+                      <Pressable
+                        key={`day-${day}`}
+                        style={[
+                          styles.calendarCell,
+                          styles.calendarDay,
+                          selected && styles.calendarDaySelected,
+                        ]}
+                        onPress={() => selectCalendarDate(day)}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            selected && styles.calendarDayTextSelected,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </Pressable>
+                    );
+                  }
+                )}
+              </View>
+
+              <View style={styles.modalFooter}>
+                <Pressable
+                  onPress={() => {
+                    setDueDate('');
+                    setDatePickerVisible(false);
+                  }}
+                >
+                  <Text style={styles.clearPickerText}>Limpiar</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.modalDoneButton}
+                  onPress={() => setDatePickerVisible(false)}
+                >
+                  <Text style={styles.modalDoneText}>Listo</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        <Modal
+          visible={timePickerVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setTimePickerVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.pickerModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Selecciona una hora</Text>
+                <Pressable onPress={() => setTimePickerVisible(false)}>
+                  <Lucide name="x" size={22} color={COLORS.text} />
+                </Pressable>
+              </View>
+
+                            <View style={styles.digitalTimeRow}>
+                <Pressable
+                  style={[
+                    styles.digitalTimeBox,
+                    timeMode === 'hour' && styles.digitalTimeBoxActive,
+                  ]}
+                  onPress={() => setTimeMode('hour')}
+                >
+                  <Text style={styles.digitalTimeText}>{selectedHour}</Text>
+                </Pressable>
+
+                <Text style={styles.digitalTimeColon}>:</Text>
+
+                <Pressable
+                  style={[
+                    styles.digitalTimeBox,
+                    timeMode === 'minute' && styles.digitalTimeBoxActive,
+                  ]}
+                  onPress={() => setTimeMode('minute')}
+                >
+                  <Text style={styles.digitalTimeText}>{selectedMinute}</Text>
+                </Pressable>
+
+                <View style={styles.periodColumn}>
+                  <Pressable
+                    style={[
+                      styles.periodButton,
+                      period === 'AM' && styles.periodButtonActive,
+                    ]}
+                    onPress={() => setPeriod('AM')}
+                  >
+                    <Text style={[
+                      styles.periodText,
+                      period === 'AM' && styles.periodTextActive,
+                    ]}>AM</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.periodButton,
+                      period === 'PM' && styles.periodButtonActive,
+                    ]}
+                    onPress={() => setPeriod('PM')}
+                  >
+                    <Text style={[
+                      styles.periodText,
+                      period === 'PM' && styles.periodTextActive,
+                    ]}>PM</Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <Text style={styles.clockInstruction}>
+                {timeMode === 'hour'
+                  ? 'Selecciona la hora'
+                  : 'Selecciona los minutos'}
+              </Text>
+
+              <View
+                style={styles.clockDial}
+                {...clockPanResponder.panHandlers}
+              >
+                <View
+                  style={[
+                    styles.clockHand,
+                    {
+                      height: 95,
+                      transform: [{
+                        rotate: `${timeMode === 'hour'
+                          ? (Number(selectedHour) % 12) * 30
+                          : (Number(selectedMinute) / 60) * 360}deg`
+                      }],
+                    },
+                  ]}
+                />
+
+                <View style={styles.clockCenter} />
+
+                {Array.from({ length: 12 }, (_, index) => {
+                  const angle = (index * 30 - 90) * Math.PI / 180;
+                  const hourValue = index === 0 ? 12 : index;
+                  const minuteValue = index * 5;
+
+                  const selected = timeMode === 'hour'
+                    ? Number(selectedHour) === hourValue
+                    : Number(selectedMinute) === minuteValue;
+
+                  return (
+                    <Pressable
+                      key={`clock-${index}`}
+                      style={[
+                        styles.clockNumber,
+                        {
+                          left: 130 + 100 * Math.cos(angle) - 17,
+                          top: 130 + 100 * Math.sin(angle) - 17,
+                        },
+                        selected && styles.clockNumberSelected,
+                      ]}
+                      onPress={() => {
+                        if (timeMode === 'hour') {
+                          setSelectedHour(
+                            String(hourValue).padStart(2, '0')
+                          );
+                          setTimeMode('minute');
+                        } else {
+                          setSelectedMinute(
+                            String(minuteValue).padStart(2, '0')
+                          );
+                        }
+                      }}
+                    >
+                      <Text style={[
+                        styles.clockNumberText,
+                        selected && styles.clockNumberTextSelected,
+                      ]}>
+                        {timeMode === 'hour'
+                          ? hourValue
+                          : String(minuteValue).padStart(2, '0')}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+<View style={styles.modalFooter}>
+                <Pressable onPress={() => setTimePickerVisible(false)}>
+                  <Text style={styles.clearPickerText}>Cancelar</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.modalDoneButton}
+                  onPress={confirmTime}
+                >
+                  <Text style={styles.modalDoneText}>Confirmar</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
         <Pressable
-          style={[styles.saveButton, saving && styles.disabledButton]}
+          style={[styles.saveButton, { backgroundColor: palette.accent }, saving && styles.disabledButton]}
           onPress={saveTask}
           disabled={saving}
         >
@@ -553,7 +1072,305 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
   },
-  textArea: {
+  pickerField: {
+    minHeight: 49,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerFieldText: {
+    color: COLORS.text,
+    fontFamily: FONTS.body,
+    fontSize: 14,
+  },
+  pickerPlaceholder: {
+    color: COLORS.soft,
+  },  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  pickerModal: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: COLORS.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: COLORS.text,
+    fontFamily: FONTS.title,
+    fontSize: 22,
+  },
+  monthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  monthArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthTitle: {
+    color: COLORS.text,
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarCell: {
+    width: '14.2857%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekdayText: {
+    color: COLORS.soft,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+  },
+  calendarDay: {
+    borderRadius: 24,
+  },
+  calendarDaySelected: {
+    backgroundColor: COLORS.brightWine,
+  },
+  calendarDayText: {
+    color: COLORS.text,
+    fontFamily: FONTS.body,
+    fontSize: 13,
+  },
+  calendarDayTextSelected: {
+    color: COLORS.white,
+    fontFamily: FONTS.bodyBold,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  clearPickerText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+  },
+  modalDoneButton: {
+    backgroundColor: COLORS.wine,
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  modalDoneText: {
+    color: COLORS.white,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+  },  timeDisplay: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginBottom: 14,
+    backgroundColor: COLORS.background,
+    borderRadius: 14,
+  },
+  timeDisplayText: {
+    color: COLORS.brightWine,
+    fontFamily: FONTS.title,
+    fontSize: 38,
+    letterSpacing: 3,
+  },
+  timeTabs: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 14,
+  },
+  timeTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 9,
+  },
+  timeTabActive: {
+    backgroundColor: COLORS.wine,
+  },
+  timeTabText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+  },
+  timeTabTextActive: {
+    color: COLORS.white,
+  },
+  timeOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    maxHeight: 250,
+    overflow: 'scroll',
+  },
+  timeOption: {
+    width: '16.6667%',
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+    marginVertical: 2,
+  },
+  timeOptionSelected: {
+    backgroundColor: COLORS.brightWine,
+  },
+  timeOptionText: {
+    color: COLORS.text,
+    fontFamily: FONTS.body,
+    fontSize: 13,
+  },
+  timeOptionTextSelected: {
+    color: COLORS.white,
+    fontFamily: FONTS.bodyBold,
+  },  clockDial: {
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: COLORS.background,
+    alignSelf: 'center',
+    marginVertical: 16,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  clockHand: {
+    position: 'absolute',
+    width: 2,
+    backgroundColor: COLORS.brightWine,
+    left: 129,
+    bottom: 130,
+    transformOrigin: 'bottom',
+    borderRadius: 2,
+  },
+  clockCenter: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.brightWine,
+    left: 124,
+    top: 124,
+    zIndex: 5,
+  },
+  clockNumber: {
+    position: 'absolute',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockNumberInner: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clockNumberSelected: {
+    backgroundColor: COLORS.brightWine,
+  },
+  clockNumberText: {
+    color: COLORS.text,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+  },
+  clockNumberTextSelected: {
+    color: COLORS.white,
+    fontFamily: FONTS.bodyBold,
+  },  digitalTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  digitalTimeBox: {
+    width: 70,
+    height: 62,
+    backgroundColor: COLORS.background,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  digitalTimeBoxActive: {
+    backgroundColor: COLORS.wine,
+    borderColor: COLORS.brightWine,
+  },
+  digitalTimeText: {
+    color: COLORS.text,
+    fontFamily: FONTS.title,
+    fontSize: 36,
+  },
+  digitalTimeColon: {
+    color: COLORS.text,
+    fontSize: 28,
+    fontFamily: FONTS.medium,
+  },
+  periodColumn: {
+    gap: 4,
+    marginLeft: 2,
+  },
+  periodButton: {
+    width: 38,
+    height: 29,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  periodButtonActive: {
+    backgroundColor: COLORS.wine,
+    borderColor: COLORS.brightWine,
+  },
+  periodText: {
+    color: COLORS.muted,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+  },
+  periodTextActive: {
+    color: COLORS.white,
+  },
+  clockInstruction: {
+    color: COLORS.muted,
+    fontFamily: FONTS.body,
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 4,
+  },  textArea: {
     minHeight: 90,
   },
   optionsRow: {
@@ -673,5 +1490,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+
+
+
+
+
+
+
+
+
+
+
 
 

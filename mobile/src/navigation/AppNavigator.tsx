@@ -22,7 +22,10 @@ export type RootStackParamList = {
   Subjects: undefined;
   SubjectDetail: { subject: Subject };
   AddSubject: { subjectId?: string } | undefined;
-  AddTask: { type?: 'tarea' | 'recordatorio' | 'nota' | 'checklist' } | undefined;
+  AddTask: {
+  type?: 'tarea' | 'recordatorio' | 'nota' | 'checklist';
+  taskId?: string;
+} | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
