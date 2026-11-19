@@ -4,22 +4,12 @@ import { HttpError } from "./http-error";
 import { UpdateProfileDto } from "../models/profile.dto";
 import { UpdateSettingsDto } from "../models/settings.dto";
 import { THEMES, Theme } from "../models/settings.model";
-import { CreateSubjectDto } from "../models/subject.dto";
-import { ScheduleBlock, WEEK_DAYS, WeekDay } from "../models/subject.model";
-import { ListSubjectsFilters } from "../models/subject.dto";
-import { SUBJECT_STATUSES, SubjectStatus } from "../models/subject.model";
-import { UpdateSubjectDto } from "../models/subject.dto";
-import { CreateGradeDto } from "../models/grade.dto";
-import { GradesAverageFilters, UpdateGradeDto } from "../models/grade.dto";
+import { CreateSubjectDto,ListSubjectsFilters,UpdateSubjectDto,} from "../models/subject.dto";
+import {ScheduleBlock,WEEK_DAYS,WeekDay,SUBJECT_STATUSES,SUBJECT_PRIORITIES,ACTIVITY_TYPES,SubjectStatus,SubjectPriority,ActivityType,SubjectReminder,} from "../models/subject.model";
+import { CreateGradeDto, GradesAverageFilters, ListGradesFilters, UpdateGradeDto } from "../models/grade.dto";
 import { CORTES, Corte } from "../models/grade.model";
-import { ListGradesFilters } from "../models/grade.dto";
 import { CreateNoteDto, ListNotesFilters, UpdateNoteDto } from "../models/note.dto";
-import {
-  CreateConnectionRequestDto,
-  ListConnectionsFilters,
-  ListPeersFilters,
-  RespondConnectionRequestDto,
-} from "../models/connection.dto";
+import {CreateConnectionRequestDto,ListConnectionsFilters,ListPeersFilters,RespondConnectionRequestDto,} from "../models/connection.dto";
 import { CONNECTION_ACTIONS, ConnectionAction } from "../models/connection.model";
 import { CreateStudyGroupDto, ListStudyGroupsFilters } from "../models/study-group.dto";
 import { MAX_GROUP_MEMBERS, MIN_GROUP_MEMBERS } from "../models/study-group.model";
@@ -313,6 +303,52 @@ export const parseSchedule = (value: unknown, errors: string[]): ScheduleBlock[]
   return blocks;
 };
 
+
+const MAX_DESCRIPTION = 500;
+const MAX_NOTES = 2000;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const isValidDate = (value: string): boolean => {
+  if (!DATE_REGEX.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value;
+};
+
+const parseReminder = (
+  value: unknown,
+  errors: string[],
+): SubjectReminder | undefined => {
+  if (value === undefined) return undefined;
+
+  if (!isPlainObject(value)) {
+    errors.push("reminder debe ser un objeto");
+    return undefined;
+  }
+
+  const enabled = value.enabled;
+  if (typeof enabled !== "boolean") {
+    errors.push("reminder.enabled debe ser true o false");
+    return undefined;
+  }
+
+  const reminder: SubjectReminder = { enabled };
+
+  if (value.dateTime !== undefined) {
+    if (
+      typeof value.dateTime !== "string" ||
+      Number.isNaN(Date.parse(value.dateTime))
+    ) {
+      errors.push("reminder.dateTime debe ser una fecha y hora válidas");
+    } else {
+      reminder.dateTime = value.dateTime;
+    }
+  }
+
+  return reminder;
+};
+
 export const validateCreateSubject = (body: unknown): CreateSubjectDto => {
   const b = ensureObject(body);
   const errors: string[] = [];
@@ -320,19 +356,26 @@ export const validateCreateSubject = (body: unknown): CreateSubjectDto => {
   if (!isNonEmptyString(b.name) || b.name.trim().length > MAX_SUBJECT_NAME) {
     errors.push(`name es obligatorio (máximo ${MAX_SUBJECT_NAME} caracteres)`);
   }
+
   if (!isNonEmptyString(b.code) || b.code.trim().length > MAX_SUBJECT_CODE) {
     errors.push(`code es obligatorio (máximo ${MAX_SUBJECT_CODE} caracteres)`);
   }
 
-  const c = b.credits;
-  if (typeof c !== "number" || !Number.isInteger(c) || c < 1 || c > 10) {
+  if (
+    typeof b.credits !== "number" ||
+    !Number.isInteger(b.credits) ||
+    b.credits < 1 ||
+    b.credits > 10
+  ) {
     errors.push("Créditos deben ser un número entero entre 1 y 10");
   }
 
-  const s = b.semester;
-  if (s === undefined) {
-    errors.push("semester es obligatorio");
-  } else if (typeof s !== "number" || !Number.isInteger(s) || s < 1 || s > 12) {
+  if (
+    typeof b.semester !== "number" ||
+    !Number.isInteger(b.semester) ||
+    b.semester < 1 ||
+    b.semester > 12
+  ) {
     errors.push("Semestre fuera de rango (1-12)");
   }
 
@@ -351,7 +394,87 @@ export const validateCreateSubject = (body: unknown): CreateSubjectDto => {
   }
 
   let schedule: ScheduleBlock[] | undefined;
-  if (b.schedule !== undefined) schedule = parseSchedule(b.schedule, errors);
+  if (b.schedule !== undefined) {
+    schedule = parseSchedule(b.schedule, errors);
+  }
+
+  let status: SubjectStatus | undefined;
+  if (b.status !== undefined) {
+    if (
+      typeof b.status !== "string" ||
+      !SUBJECT_STATUSES.includes(b.status as SubjectStatus)
+    ) {
+      errors.push(`status debe ser uno de: ${SUBJECT_STATUSES.join(", ")}`);
+    } else status = b.status as SubjectStatus;
+  }
+
+  let priority: SubjectPriority | undefined;
+  if (b.priority !== undefined) {
+    if (
+      typeof b.priority !== "string" ||
+      !SUBJECT_PRIORITIES.includes(b.priority as SubjectPriority)
+    ) {
+      errors.push(`priority debe ser uno de: ${SUBJECT_PRIORITIES.join(", ")}`);
+    } else priority = b.priority as SubjectPriority;
+  }
+
+  let description: string | undefined;
+  if (b.description !== undefined) {
+    if (typeof b.description !== "string" || b.description.length > MAX_DESCRIPTION) {
+      errors.push(`description debe tener máximo ${MAX_DESCRIPTION} caracteres`);
+    } else description = b.description.trim();
+  }
+
+  let dueDate: string | null | undefined;
+  if (b.dueDate !== undefined) {
+    if (b.dueDate === null) {
+      dueDate = null;
+    } else if (typeof b.dueDate !== "string" || !isValidDate(b.dueDate)) {
+      errors.push("dueDate debe tener formato YYYY-MM-DD o ser null");
+    } else dueDate = b.dueDate;
+  }
+
+  let dueTime: string | null | undefined;
+  if (b.dueTime !== undefined) {
+    if (b.dueTime === null) {
+      dueTime = null;
+    } else if (typeof b.dueTime !== "string" || !TIME_REGEX.test(b.dueTime)) {
+      errors.push("dueTime debe tener formato HH:mm o ser null");
+    } else dueTime = b.dueTime;
+  }
+
+  let activityType: ActivityType | null | undefined;
+  if (b.activityType !== undefined) {
+    if (b.activityType === null) {
+      activityType = null;
+    } else if (
+      typeof b.activityType !== "string" ||
+      !ACTIVITY_TYPES.includes(b.activityType as ActivityType)
+    ) {
+      errors.push(`activityType debe ser uno de: ${ACTIVITY_TYPES.join(", ")}`);
+    } else activityType = b.activityType as ActivityType;
+  }
+
+  const reminder = parseReminder(b.reminder, errors);
+
+  let notes: string | undefined;
+  if (b.notes !== undefined) {
+    if (typeof b.notes !== "string" || b.notes.length > MAX_NOTES) {
+      errors.push(`notes debe tener máximo ${MAX_NOTES} caracteres`);
+    } else notes = b.notes;
+  }
+
+  let progress: number | undefined;
+  if (b.progress !== undefined) {
+    if (
+      typeof b.progress !== "number" ||
+      !Number.isInteger(b.progress) ||
+      b.progress < 0 ||
+      b.progress > 100
+    ) {
+      errors.push("progress debe ser un número entero entre 0 y 100");
+    } else progress = b.progress;
+  }
 
   fail(errors);
 
@@ -363,48 +486,89 @@ export const validateCreateSubject = (body: unknown): CreateSubjectDto => {
     teacher,
     color,
     schedule,
+    status,
+    priority,
+    description,
+    dueDate,
+    dueTime,
+    activityType,
+    reminder,
+    notes,
+    progress,
   };
 };
-// ---- Listado de materias: query params ----
-export const validateListSubjectsQuery = (query: unknown): ListSubjectsFilters => {
+
+
+export const validateListSubjectsQuery = (
+  query: unknown,
+): ListSubjectsFilters => {
   const q = (query ?? {}) as Record<string, unknown>;
   const errors: string[] = [];
   const filters: ListSubjectsFilters = {};
 
-  // Un parámetro vacío (?search=) se trata como "no enviado"
   const read = (key: string): unknown => {
-    const v = q[key];
-    return typeof v === "string" && v.trim() === "" ? undefined : v;
+    const value = q[key];
+    return typeof value === "string" && value.trim() === ""
+      ? undefined
+      : value;
   };
 
   const semester = read("semester");
   if (semester !== undefined) {
-    // Los query params llegan como texto: hay que convertirlos
     const n =
       typeof semester === "string" && /^\d{1,2}$/.test(semester.trim())
         ? Number(semester.trim())
         : NaN;
-    if (!(n >= 1 && n <= 12)) errors.push("Semestre fuera de rango (1-12)");
-    else filters.semester = n;
+
+    if (!(n >= 1 && n <= 12)) {
+      errors.push("Semestre fuera de rango (1-12)");
+    } else {
+      filters.semester = n;
+    }
   }
 
   const status = read("status");
   if (status !== undefined) {
-    if (typeof status !== "string" || !SUBJECT_STATUSES.includes(status.trim() as SubjectStatus)) {
+    if (
+      typeof status !== "string" ||
+      !SUBJECT_STATUSES.includes(status.trim() as SubjectStatus)
+    ) {
       errors.push(`status debe ser uno de: ${SUBJECT_STATUSES.join(", ")}`);
-    } else filters.status = status.trim() as SubjectStatus;
+    } else {
+      filters.status = status.trim() as SubjectStatus;
+    }
+  }
+
+  const priority = read("priority");
+  if (priority !== undefined) {
+    if (
+      typeof priority !== "string" ||
+      !SUBJECT_PRIORITIES.includes(priority.trim() as SubjectPriority)
+    ) {
+      errors.push(`priority debe ser uno de: ${SUBJECT_PRIORITIES.join(", ")}`);
+    } else {
+      filters.priority = priority.trim() as SubjectPriority;
+    }
   }
 
   const search = read("search");
   if (search !== undefined) {
-    if (typeof search !== "string" || search.trim().length > MAX_SUBJECT_NAME) {
-      errors.push(`search debe ser un texto de máximo ${MAX_SUBJECT_NAME} caracteres`);
-    } else filters.search = search.trim();
+    if (
+      typeof search !== "string" ||
+      search.trim().length > MAX_SUBJECT_NAME
+    ) {
+      errors.push(
+        `search debe ser un texto de máximo ${MAX_SUBJECT_NAME} caracteres`,
+      );
+    } else {
+      filters.search = search.trim();
+    }
   }
 
   fail(errors);
   return filters;
 };
+
 // ---- ID de materia (parámetro de la URL) ----
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -422,58 +586,186 @@ export const validateUuidParam = (value: unknown, field: string): string => {
 // ---- Actualización de materias ----
 // Mismas reglas que validateCreateSubject, pero todos los campos son opcionales.
 // Se comprueba solo lo que llega: lo que no llega no se toca.
+
 export const validateUpdateSubject = (body: unknown): UpdateSubjectDto => {
   const b = ensureObject(body);
   const errors: string[] = [];
   const dto: UpdateSubjectDto = {};
 
   if (b.name !== undefined) {
-    if (!isNonEmptyString(b.name) || b.name.trim().length > MAX_SUBJECT_NAME) {
-      errors.push(`name no puede estar vacío (máximo ${MAX_SUBJECT_NAME} caracteres)`);
-    } else dto.name = b.name.trim();
+    if (
+      !isNonEmptyString(b.name) ||
+      b.name.trim().length > MAX_SUBJECT_NAME
+    ) {
+      errors.push(`name es obligatorio (máximo ${MAX_SUBJECT_NAME} caracteres)`);
+    } else {
+      dto.name = b.name.trim();
+    }
   }
 
   if (b.code !== undefined) {
-    if (!isNonEmptyString(b.code) || b.code.trim().length > MAX_SUBJECT_CODE) {
-      errors.push(`code no puede estar vacío (máximo ${MAX_SUBJECT_CODE} caracteres)`);
-    } else dto.code = b.code.trim();
+    if (
+      !isNonEmptyString(b.code) ||
+      b.code.trim().length > MAX_SUBJECT_CODE
+    ) {
+      errors.push(`code es obligatorio (máximo ${MAX_SUBJECT_CODE} caracteres)`);
+    } else {
+      dto.code = b.code.trim();
+    }
   }
 
   if (b.credits !== undefined) {
-    const c = b.credits;
-    if (typeof c !== "number" || !Number.isInteger(c) || c < 1 || c > 10) {
+    if (
+      typeof b.credits !== "number" ||
+      !Number.isInteger(b.credits) ||
+      b.credits < 1 ||
+      b.credits > 10
+    ) {
       errors.push("Créditos deben ser un número entero entre 1 y 10");
-    } else dto.credits = c;
+    } else {
+      dto.credits = b.credits;
+    }
   }
 
   if (b.semester !== undefined) {
-    const s = b.semester;
-    if (typeof s !== "number" || !Number.isInteger(s) || s < 1 || s > 12) {
+    if (
+      typeof b.semester !== "number" ||
+      !Number.isInteger(b.semester) ||
+      b.semester < 1 ||
+      b.semester > 12
+    ) {
       errors.push("Semestre fuera de rango (1-12)");
-    } else dto.semester = s;
+    } else {
+      dto.semester = b.semester;
+    }
   }
 
   if (b.teacher !== undefined) {
     if (typeof b.teacher !== "string" || b.teacher.length > MAX_TEACHER) {
       errors.push(`teacher debe ser un texto de máximo ${MAX_TEACHER} caracteres`);
-    } else dto.teacher = b.teacher.trim(); // "" es válido: borra el profesor
+    } else {
+      dto.teacher = b.teacher.trim();
+    }
   }
 
   if (b.color !== undefined) {
     if (typeof b.color !== "string" || !HEX_COLOR_REGEX.test(b.color)) {
       errors.push("color debe ser un hexadecimal válido, por ejemplo #3B82F6");
-    } else dto.color = b.color;
+    } else {
+      dto.color = b.color;
+    }
   }
 
-  // schedule REEMPLAZA todo el horario; [] lo borra
-  if (b.schedule !== undefined) dto.schedule = parseSchedule(b.schedule, errors);
+  if (b.schedule !== undefined) {
+    dto.schedule = parseSchedule(b.schedule, errors);
+  }
+
+  if (b.status !== undefined) {
+    if (
+      typeof b.status !== "string" ||
+      !SUBJECT_STATUSES.includes(b.status as SubjectStatus)
+    ) {
+      errors.push(`status debe ser uno de: ${SUBJECT_STATUSES.join(", ")}`);
+    } else {
+      dto.status = b.status as SubjectStatus;
+    }
+  }
+
+  if (b.priority !== undefined) {
+    if (
+      typeof b.priority !== "string" ||
+      !SUBJECT_PRIORITIES.includes(b.priority as SubjectPriority)
+    ) {
+      errors.push(`priority debe ser uno de: ${SUBJECT_PRIORITIES.join(", ")}`);
+    } else {
+      dto.priority = b.priority as SubjectPriority;
+    }
+  }
+
+  if (b.description !== undefined) {
+    if (
+      typeof b.description !== "string" ||
+      b.description.length > MAX_DESCRIPTION
+    ) {
+      errors.push(`description debe tener máximo ${MAX_DESCRIPTION} caracteres`);
+    } else {
+      dto.description = b.description.trim();
+    }
+  }
+
+  if (b.dueDate !== undefined) {
+    if (b.dueDate === null) {
+      dto.dueDate = null;
+    } else if (
+      typeof b.dueDate !== "string" ||
+      !isValidDate(b.dueDate)
+    ) {
+      errors.push("dueDate debe tener formato YYYY-MM-DD o ser null");
+    } else {
+      dto.dueDate = b.dueDate;
+    }
+  }
+
+  if (b.dueTime !== undefined) {
+    if (b.dueTime === null) {
+      dto.dueTime = null;
+    } else if (
+      typeof b.dueTime !== "string" ||
+      !TIME_REGEX.test(b.dueTime)
+    ) {
+      errors.push("dueTime debe tener formato HH:mm o ser null");
+    } else {
+      dto.dueTime = b.dueTime;
+    }
+  }
+
+  if (b.activityType !== undefined) {
+    if (b.activityType === null) {
+      dto.activityType = null;
+    } else if (
+      typeof b.activityType !== "string" ||
+      !ACTIVITY_TYPES.includes(b.activityType as ActivityType)
+    ) {
+      errors.push(`activityType debe ser uno de: ${ACTIVITY_TYPES.join(", ")}`);
+    } else {
+      dto.activityType = b.activityType as ActivityType;
+    }
+  }
+
+  if (b.reminder !== undefined) {
+    const reminder = parseReminder(b.reminder, errors);
+
+    if (reminder !== undefined) {
+      dto.reminder = reminder;
+    }
+  }
+
+  if (b.notes !== undefined) {
+    if (typeof b.notes !== "string" || b.notes.length > MAX_NOTES) {
+      errors.push(`notes debe tener máximo ${MAX_NOTES} caracteres`);
+    } else {
+      dto.notes = b.notes;
+    }
+  }
+
+  if (b.progress !== undefined) {
+    if (
+      typeof b.progress !== "number" ||
+      !Number.isInteger(b.progress) ||
+      b.progress < 0 ||
+      b.progress > 100
+    ) {
+      errors.push("progress debe ser un número entero entre 0 y 100");
+    } else {
+      dto.progress = b.progress;
+    }
+  }
 
   fail(errors);
 
-  // Regla: al menos un campo (los desconocidos como id, userId o status no cuentan)
   if (Object.keys(dto).length === 0) {
     throw new HttpError(400, "Datos inválidos", [
-      "Debes enviar al menos un campo: name, code, credits, semester, teacher, color o schedule",
+      "Debes enviar al menos un campo válido para actualizar la materia",
     ]);
   }
 

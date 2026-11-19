@@ -1,3 +1,4 @@
+
 import express from "express";
 import path from "node:path";
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware";
@@ -12,6 +13,7 @@ import { peersRouter } from "./routes/peers.routes";
 import { connectionsRouter } from "./routes/connections.routes";
 import { studyGroupsRouter } from "./routes/study-groups.routes";
 import { tipsRouter } from "./routes/tips.routes";
+import { tasksRouter } from "./routes/tasks.routes";
 
 export const app = express();
 
@@ -30,6 +32,7 @@ app.use("/api/profile", profileRouter);
 
 app.use("/api/settings", settingsRouter);
 app.use("/api/subjects", subjectsRouter);
+app.use("/api/tasks", tasksRouter);
 app.use("/api/grades", gradesRouter);
 app.use("/api/notes", notesRouter);
 app.use("/api/peers", peersRouter);

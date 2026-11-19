@@ -49,7 +49,7 @@ export default function WelcomeScreen({ onLogin, onRegister }: Props) {
     <View style={styles.container}>
 
       {/* RESPLANDOR CIRCULAR */}
-      <View style={styles.glowContainer}>
+      <View style={styles.glowContainer} pointerEvents="none">
         <Svg width={700} height={700} viewBox="0 0 700 700">
           <Defs>
             <RadialGradient
