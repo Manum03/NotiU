@@ -698,258 +698,548 @@ Alert.alert(
         </View>
 
 
-        <Modal
+                <Modal
           visible={datePickerVisible}
           transparent
           animationType="fade"
           onRequestClose={() => setDatePickerVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.pickerModal}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Selecciona una fecha</Text>
+          <View style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.78)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+          }}>
+            <View style={{
+              width: '100%',
+              maxWidth: 360,
+              backgroundColor: palette.field,
+              borderRadius: 22,
+              borderWidth: 1,
+              borderColor: palette.border,
+              padding: 19,
+            }}>
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 22,
+              }}>
+                <View>
+                  <Text style={{
+                    color: palette.accent,
+                    fontSize: 10,
+                    fontWeight: '900',
+                    letterSpacing: 1.5,
+                    marginBottom: 5,
+                  }}>
+                    FECHA
+                  </Text>
+                  <Text style={{
+                    color: COLORS.text,
+                    fontSize: 22,
+                    fontWeight: '800',
+                  }}>
+                    Elige un día
+                  </Text>
+                </View>
+
                 <Pressable onPress={() => setDatePickerVisible(false)}>
-                  <Lucide name="x" size={22} color={COLORS.text} />
+                  <Lucide name="x" size={22} color={COLORS.muted} />
                 </Pressable>
               </View>
 
-              <View style={styles.monthHeader}>
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 16,
+              }}>
                 <Pressable
-                  style={styles.monthArrow}
                   onPress={() => changeCalendarMonth(-1)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: COLORS.background,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
-                  <Lucide name="chevron-left" size={22} color={COLORS.text} />
+                  <Lucide name="chevron-left" size={21} color={palette.accent} />
                 </Pressable>
 
-                <Text style={styles.monthTitle}>
+                <Text style={{
+                  color: COLORS.text,
+                  fontSize: 16,
+                  fontWeight: '800',
+                  textTransform: 'capitalize',
+                }}>
                   {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre',
                     'Diciembre'][calendarMonth]} {calendarYear}
                 </Text>
 
                 <Pressable
-                  style={styles.monthArrow}
                   onPress={() => changeCalendarMonth(1)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: COLORS.background,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
-                  <Lucide name="chevron-right" size={22} color={COLORS.text} />
+                  <Lucide name="chevron-right" size={21} color={palette.accent} />
                 </Pressable>
               </View>
 
-              <View style={styles.calendarGrid}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                 {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
-                  <View key={`weekday-${index}`} style={styles.calendarCell}>
-                    <Text style={styles.weekdayText}>{day}</Text>
+                  <View
+                    key={`weekday-${index}`}
+                    style={{
+                      width: '14.2857%',
+                      height: 34,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{
+                      color: COLORS.muted,
+                      fontSize: 11,
+                      fontWeight: '800',
+                    }}>
+                      {day}
+                    </Text>
                   </View>
                 ))}
 
-                {Array.from(
-                  { length: new Date(calendarYear, calendarMonth, 1).getDay() },
-                  (_, index) => (
-                    <View
-                      key={`empty-${index}`}
-                      style={styles.calendarCell}
-                    />
-                  )
-                )}
+                {Array.from({ length: 42 }, (_, index) => {
+                  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+                  const day = index - firstDay + 1;
+                  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
 
-                {Array.from(
-                  { length: new Date(calendarYear, calendarMonth + 1, 0).getDate() },
-                  (_, index) => {
-                    const day = index + 1;
-                    const dateValue =
-                      `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const selected = dueDate === dateValue;
-
+                  if (day < 1 || day > daysInMonth) {
                     return (
-                      <Pressable
-                        key={`day-${day}`}
-                        style={[
-                          styles.calendarCell,
-                          styles.calendarDay,
-                          selected && styles.calendarDaySelected,
-                        ]}
-                        onPress={() => selectCalendarDate(day)}
-                      >
-                        <Text
-                          style={[
-                            styles.calendarDayText,
-                            selected && styles.calendarDayTextSelected,
-                          ]}
-                        >
-                          {day}
-                        </Text>
-                      </Pressable>
+                      <View
+                        key={`empty-${index}`}
+                        style={{
+                          width: '14.2857%',
+                          aspectRatio: 1,
+                        }}
+                      />
                     );
                   }
-                )}
+
+                  const dateValue =
+                    `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                  const selected = dueDate === dateValue;
+                  const now = new Date();
+                  const isToday =
+                    now.getFullYear() === calendarYear &&
+                    now.getMonth() === calendarMonth &&
+                    now.getDate() === day;
+
+                  return (
+                    <Pressable
+                      key={`day-${day}`}
+                      onPress={() => selectCalendarDate(day)}
+                      style={{
+                        width: '14.2857%',
+                        aspectRatio: 1,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <View style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: selected ? palette.accent : 'transparent',
+                        borderWidth: isToday && !selected ? 1.5 : 0,
+                        borderColor: palette.accent,
+                      }}>
+                        <Text style={{
+                          color: selected ? '#18080D' : isToday ? palette.accent : COLORS.text,
+                          fontSize: 13,
+                          fontWeight: selected || isToday ? '900' : '500',
+                        }}>
+                          {day}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
               </View>
 
-              <View style={styles.modalFooter}>
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 18,
+              }}>
+                <Pressable onPress={() => setDatePickerVisible(false)}>
+                  <Text style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    fontWeight: '800',
+                  }}>
+                    CANCELAR
+                  </Text>
+                </Pressable>
+
                 <Pressable
                   onPress={() => {
-                    setDueDate('');
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = today.getMonth();
+                    const day = today.getDate();
+
+                    setCalendarYear(year);
+                    setCalendarMonth(month);
+                    setDueDate(
+                      `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                    );
                     setDatePickerVisible(false);
                   }}
+                  style={{
+                    backgroundColor: palette.accent,
+                    paddingHorizontal: 22,
+                    paddingVertical: 11,
+                    borderRadius: 12,
+                  }}
                 >
-                  <Text style={styles.clearPickerText}>Limpiar</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.modalDoneButton}
-                  onPress={() => setDatePickerVisible(false)}
-                >
-                  <Text style={styles.modalDoneText}>Listo</Text>
+                  <Text style={{
+                    color: '#18080D',
+                    fontSize: 11,
+                    fontWeight: '900',
+                  }}>
+                    HOY
+                  </Text>
                 </Pressable>
               </View>
             </View>
           </View>
         </Modal>
+
         <Modal
           visible={timePickerVisible}
           transparent
           animationType="fade"
           onRequestClose={() => setTimePickerVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.pickerModal}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Selecciona una hora</Text>
+          <View style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.78)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+          }}>
+            <View style={{
+              width: '100%',
+              maxWidth: 360,
+              backgroundColor: palette.field,
+              borderRadius: 22,
+              borderWidth: 1,
+              borderColor: palette.border,
+              padding: 20,
+              alignItems: 'center',
+            }}>
+              <View style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 18,
+              }}>
+                <View>
+                  <Text style={{
+                    color: palette.accent,
+                    fontSize: 10,
+                    fontWeight: '900',
+                    letterSpacing: 1.5,
+                    marginBottom: 5,
+                  }}>
+                    HORA
+                  </Text>
+                  <Text style={{
+                    color: COLORS.text,
+                    fontSize: 22,
+                    fontWeight: '800',
+                  }}>
+                    Elige la hora
+                  </Text>
+                </View>
+
                 <Pressable onPress={() => setTimePickerVisible(false)}>
-                  <Lucide name="x" size={22} color={COLORS.text} />
+                  <Lucide name="x" size={22} color={COLORS.muted} />
                 </Pressable>
               </View>
 
-                            <View style={styles.digitalTimeRow}>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: COLORS.background,
+                borderRadius: 15,
+                padding: 10,
+                width: '100%',
+                marginBottom: 18,
+              }}>
                 <Pressable
-                  style={[
-                    styles.digitalTimeBox,
-                    timeMode === 'hour' && styles.digitalTimeBoxActive,
-                  ]}
                   onPress={() => setTimeMode('hour')}
+                  style={{
+                    minWidth: 65,
+                    alignItems: 'center',
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    backgroundColor: timeMode === 'hour' ? palette.accent : 'transparent',
+                  }}
                 >
-                  <Text style={styles.digitalTimeText}>{selectedHour}</Text>
+                  <Text style={{
+                    color: timeMode === 'hour' ? '#18080D' : COLORS.text,
+                    fontSize: 30,
+                    fontWeight: '900',
+                  }}>
+                    {selectedHour}
+                  </Text>
                 </Pressable>
 
-                <Text style={styles.digitalTimeColon}>:</Text>
+                <Text style={{
+                  color: palette.accent,
+                  fontSize: 27,
+                  fontWeight: '900',
+                  marginHorizontal: 3,
+                }}>
+                  :
+                </Text>
 
                 <Pressable
-                  style={[
-                    styles.digitalTimeBox,
-                    timeMode === 'minute' && styles.digitalTimeBoxActive,
-                  ]}
                   onPress={() => setTimeMode('minute')}
+                  style={{
+                    minWidth: 65,
+                    alignItems: 'center',
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    backgroundColor: timeMode === 'minute' ? palette.accent : 'transparent',
+                  }}
                 >
-                  <Text style={styles.digitalTimeText}>{selectedMinute}</Text>
+                  <Text style={{
+                    color: timeMode === 'minute' ? '#18080D' : COLORS.text,
+                    fontSize: 30,
+                    fontWeight: '900',
+                  }}>
+                    {selectedMinute}
+                  </Text>
                 </Pressable>
 
-                <View style={styles.periodColumn}>
-                  <Pressable
-                    style={[
-                      styles.periodButton,
-                      period === 'AM' && styles.periodButtonActive,
-                    ]}
-                    onPress={() => setPeriod('AM')}
-                  >
-                    <Text style={[
-                      styles.periodText,
-                      period === 'AM' && styles.periodTextActive,
-                    ]}>AM</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.periodButton,
-                      period === 'PM' && styles.periodButtonActive,
-                    ]}
-                    onPress={() => setPeriod('PM')}
-                  >
-                    <Text style={[
-                      styles.periodText,
-                      period === 'PM' && styles.periodTextActive,
-                    ]}>PM</Text>
-                  </Pressable>
+                <View style={{ marginLeft: 12, gap: 5 }}>
+                  {(['AM', 'PM'] as const).map((value) => (
+                    <Pressable
+                      key={value}
+                      onPress={() => setPeriod(value)}
+                      style={{
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        backgroundColor: period === value ? palette.accent : 'transparent',
+                      }}
+                    >
+                      <Text style={{
+                        color: period === value ? '#18080D' : COLORS.muted,
+                        fontSize: 11,
+                        fontWeight: '900',
+                      }}>
+                        {value}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
               </View>
 
-              <Text style={styles.clockInstruction}>
-                {timeMode === 'hour'
-                  ? 'Selecciona la hora'
-                  : 'Selecciona los minutos'}
+              <Text style={{
+                color: COLORS.muted,
+                fontSize: 11,
+                fontWeight: '600',
+                marginBottom: 5,
+              }}>
+                {timeMode === 'hour' ? 'Selecciona la hora' : 'Selecciona los minutos'}
               </Text>
 
               <View
-                style={styles.clockDial}
+                style={{
+                  width: 260,
+                  height: 260,
+                  borderRadius: 130,
+                  backgroundColor: COLORS.background,
+                  borderWidth: 1,
+                  borderColor: palette.border,
+                  alignSelf: 'center',
+                  marginVertical: 12,
+                  position: 'relative',
+                }}
                 {...clockPanResponder.panHandlers}
               >
                 <View
-                  style={[
-                    styles.clockHand,
-                    {
-                      height: 95,
-                      transform: [{
-                        rotate: `${timeMode === 'hour'
-                          ? (Number(selectedHour) % 12) * 30
-                          : (Number(selectedMinute) / 60) * 360}deg`
-                      }],
-                    },
-                  ]}
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    width: 260,
+                    height: 260,
+                    alignItems: 'center',
+                    transform: [{
+                      rotate: `${(Number(selectedHour) % 12) * 30 + Number(selectedMinute) * 0.5}deg`,
+                    }],
+                  }}
+                >
+                  <View style={{
+                    marginTop: 82,
+                    width: 5,
+                    height: 48,
+                    borderRadius: 3,
+                    backgroundColor: palette.accent,
+                  }} />
+                </View>
+
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    width: 260,
+                    height: 260,
+                    alignItems: 'center',
+                    transform: [{
+                      rotate: `${Number(selectedMinute) * 6}deg`,
+                    }],
+                  }}
+                >
+                  <View style={{
+                    marginTop: 60,
+                    width: 3,
+                    height: 70,
+                    borderRadius: 2,
+                    backgroundColor: COLORS.text,
+                  }} />
+                </View>
+
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    left: 126,
+                    top: 126,
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: palette.accent,
+                    zIndex: 5,
+                  }}
                 />
 
-                <View style={styles.clockCenter} />
-
                 {Array.from({ length: 12 }, (_, index) => {
-                  const angle = (index * 30 - 90) * Math.PI / 180;
-                  const hourValue = index === 0 ? 12 : index;
-                  const minuteValue = index * 5;
-
-                  const selected = timeMode === 'hour'
-                    ? Number(selectedHour) === hourValue
-                    : Number(selectedMinute) === minuteValue;
+                  const angle = (index * Math.PI) / 6;
+                  const x = 130 + 91 * Math.sin(angle) - 17;
+                  const y = 130 - 91 * Math.cos(angle) - 17;
+                  const value = timeMode === 'hour'
+                    ? (index === 0 ? 12 : index)
+                    : index * 5;
+                  const label = String(value).padStart(2, '0');
+                  const active = timeMode === 'hour'
+                    ? Number(selectedHour) === value
+                    : Number(selectedMinute) === value;
 
                   return (
                     <Pressable
-                      key={`clock-${index}`}
-                      style={[
-                        styles.clockNumber,
-                        {
-                          left: 130 + 100 * Math.cos(angle) - 17,
-                          top: 130 + 100 * Math.sin(angle) - 17,
-                        },
-                        selected && styles.clockNumberSelected,
-                      ]}
+                      key={`${timeMode}-${index}`}
                       onPress={() => {
                         if (timeMode === 'hour') {
-                          setSelectedHour(
-                            String(hourValue).padStart(2, '0')
-                          );
+                          setSelectedHour(label);
                           setTimeMode('minute');
                         } else {
-                          setSelectedMinute(
-                            String(minuteValue).padStart(2, '0')
-                          );
+                          setSelectedMinute(label);
                         }
                       }}
+                      style={{
+                        position: 'absolute',
+                        left: x,
+                        top: y,
+                        width: 34,
+                        height: 34,
+                        borderRadius: 17,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: active ? palette.accent : 'transparent',
+                      }}
                     >
-                      <Text style={[
-                        styles.clockNumberText,
-                        selected && styles.clockNumberTextSelected,
-                      ]}>
-                        {timeMode === 'hour'
-                          ? hourValue
-                          : String(minuteValue).padStart(2, '0')}
+                      <Text style={{
+                        color: active ? '#18080D' : COLORS.text,
+                        fontSize: 12,
+                        fontWeight: '800',
+                      }}>
+                        {label}
                       </Text>
                     </Pressable>
                   );
                 })}
               </View>
-<View style={styles.modalFooter}>
-                <Pressable onPress={() => setTimePickerVisible(false)}>
-                  <Text style={styles.clearPickerText}>Cancelar</Text>
-                </Pressable>
+
+              <Text style={{
+                color: COLORS.muted,
+                fontSize: 10,
+                marginTop: 4,
+              }}>
+                Toca el reloj para ajustar {timeMode === 'hour' ? 'la hora' : 'los minutos'}
+              </Text>
+
+              <View style={{
+                flexDirection: 'row',
+                width: '100%',
+                gap: 10,
+                marginTop: 19,
+              }}>
                 <Pressable
-                  style={styles.modalDoneButton}
-                  onPress={confirmTime}
+                  onPress={() => setTimePickerVisible(false)}
+                  style={{
+                    flex: 1,
+                    padding: 13,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: palette.border,
+                    alignItems: 'center',
+                  }}
                 >
-                  <Text style={styles.modalDoneText}>Confirmar</Text>
+                  <Text style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    fontWeight: '800',
+                  }}>
+                    CANCELAR
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={confirmTime}
+                  style={{
+                    flex: 1,
+                    padding: 13,
+                    borderRadius: 12,
+                    backgroundColor: palette.accent,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    color: '#18080D',
+                    fontSize: 11,
+                    fontWeight: '900',
+                  }}>
+                    CONFIRMAR
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -1490,6 +1780,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+
 
 
 

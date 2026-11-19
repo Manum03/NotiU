@@ -33,7 +33,7 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
       try {
         const session = await getSession();
         if (!session?.token) {
-          throw new Error('No se encontró una sesión activa.');
+          throw new Error('No se encontrÃ³ una sesiÃ³n activa.');
         }
 
         const updatedSubject = await apiRequest<typeof subject>(
@@ -71,7 +71,7 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
 
       const session = await getSession();
       if (!session?.token) {
-        throw new Error('No se encontró una sesión activa.');
+        throw new Error('No se encontrÃ³ una sesiÃ³n activa.');
       }
 
       await apiRequest<unknown>(`/subjects/${subject.id}`, {
@@ -93,7 +93,7 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
   const confirmDelete = () => {
     Alert.alert(
       'Eliminar materia',
-      `¿Estás seguro de que deseas eliminar "${subject.name}"?`,
+      `Â¿EstÃ¡s seguro de que deseas eliminar "${subject.name}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Eliminar', style: 'destructive', onPress: deleteSubject },
@@ -111,11 +111,19 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
 
 const priorityColor = PRIORITY_TONES[subject.priority];
 
+  const STATUS_TONES = {
+    cursando: { accent: '#E47D9B', card: '#2B1115', border: '#87415A' },
+    pendiente: { accent: '#E5A16F', card: '#260A13', border: '#805039' },
+    aprobada: { accent: '#BDA0D4', card: '#35101D', border: '#70517F' },
+  } as const;
+
+  const statusTheme = STATUS_TONES[subject.status];
+
   const completeSubject = async () => {
     try {
       setSaving(true);
       const session = await getSession();
-      if (!session?.token) throw new Error('No se encontró una sesión activa.');
+      if (!session?.token) throw new Error('No se encontrÃ³ una sesiÃ³n activa.');
 
       await apiRequest<unknown>(`/subjects/${subject.id}`, {
         method: 'PATCH',
@@ -132,7 +140,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
   };
 
   const confirmComplete = () =>
-    Alert.alert('Completar materia', `¿Marcar "${subject.name}" como finalizada?`, [
+    Alert.alert('Completar materia', `Â¿Marcar "${subject.name}" como finalizada?`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Completar', onPress: completeSubject },
     ]);
@@ -144,7 +152,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
           <Lucide name="chevron-left" size={26} color={COLORS.brightWine} />
         </Pressable>
 
-        <View style={styles.hero}>
+        <View style={[styles.hero, { backgroundColor: statusTheme.card, borderColor: statusTheme.border }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{subject.name.toUpperCase()}</Text>
             <Text style={styles.teacher}>{subject.teacher || 'Docente por asignar'}</Text>
@@ -163,13 +171,27 @@ const priorityColor = PRIORITY_TONES[subject.priority];
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>DESCRIPCIÓN</Text>
-        <Text style={styles.body}>{subject.description || 'Sin descripción.'}</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>INFORMACIÃ“N DE LA ENTREGA</Text>
 
-        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>INFORMACIÓN DE LA ENTREGA</Text>
+        <View
+          style={[
+            styles.descriptionCard,
+            {
+              backgroundColor: statusTheme.card,
+              borderColor: statusTheme.border,
+            },
+          ]}
+        >
+          <Text style={[styles.infoLabel, { color: statusTheme.accent }]}>
+            DESCRIPCIÃ“N
+          </Text>
+          <Text style={styles.body}>
+            {subject.description || 'Sin descripciÃ³n.'}
+          </Text>
+        </View>
 
         <View style={styles.infoRow}>
-          <Lucide name="calendar" size={18} color={COLORS.brightWine} />
+          <Lucide name="calendar" size={18} color={statusTheme.accent} />
           <View>
             <Text style={styles.infoLabel}>FECHA DE ENTREGA</Text>
             <Text style={styles.infoValue}>{formatLongDate(subject.dueDate)}</Text>
@@ -177,15 +199,15 @@ const priorityColor = PRIORITY_TONES[subject.priority];
         </View>
 
         <View style={styles.infoRow}>
-          <Lucide name="clock" size={18} color={COLORS.brightWine} />
+          <Lucide name="clock" size={18} color={statusTheme.accent} />
           <View>
-            <Text style={styles.infoLabel}>HORA LÍMITE</Text>
+            <Text style={styles.infoLabel}>HORA LÃMITE</Text>
             <Text style={styles.infoValue}>{formatTime(subject.dueTime)}</Text>
           </View>
         </View>
 
         <View style={styles.infoRow}>
-          <Lucide name="tag" size={18} color={COLORS.brightWine} />
+          <Lucide name="tag" size={18} color={statusTheme.accent} />
           <View>
             <Text style={styles.infoLabel}>TIPO DE ACTIVIDAD</Text>
             <Text style={styles.infoValue}>
@@ -197,7 +219,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
         <View style={styles.divider} />
 
         <View style={styles.infoRow}>
-          <Lucide name="bell" size={18} color={COLORS.brightWine} />
+          <Lucide name="bell" size={18} color={statusTheme.accent} />
           <View>
             <Text style={styles.infoLabel}>RECORDATORIO</Text>
             <Text style={styles.infoValue}>
@@ -273,21 +295,38 @@ const styles = StyleSheet.create({
   infoLabel: { color: COLORS.text, fontSize: 11, fontWeight: '800', marginBottom: 2 },
   infoValue: { color: COLORS.muted, fontSize: 12 },
   divider: { height: 1, backgroundColor: COLORS.border, marginTop: 20 },
-  notes: {
-    marginTop: 18, padding: 14, borderRadius: 14, borderWidth: 1,
-    borderColor: COLORS.border, backgroundColor: COLORS.card,
+  descriptionCard: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-    actions: {
-    gap: 12,
-    marginTop: 24,
+  notes: {
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+  },
+  actions: {
+    gap: 16,
+    marginTop: 28,
   },
   topActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
   button: {
-    flex: 1, height: 50, borderRadius: 14, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'center', gap: 8,
+    flex: 1,
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   buttonMain: { backgroundColor: COLORS.wine, borderWidth: 1, borderColor: COLORS.brightWine },
   buttonGhost: { borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
