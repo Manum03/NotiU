@@ -13,6 +13,12 @@ import {CreateConnectionRequestDto,ListConnectionsFilters,ListPeersFilters,Respo
 import { CONNECTION_ACTIONS, ConnectionAction } from "../models/connection.model";
 import { CreateStudyGroupDto, ListStudyGroupsFilters } from "../models/study-group.dto";
 import { MAX_GROUP_MEMBERS, MIN_GROUP_MEMBERS } from "../models/study-group.model";
+import { randomUUID } from "crypto";
+import { CreateTaskDto, TaskListQueryDto, UpdateTaskDto } from "../models/task.dto";
+import {
+  TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES,
+  TaskPriority, TaskStatus, TaskSubtask, TaskType,
+} from "../models/task.model";
 import { ListTipsFilters } from "../models/tip.dto";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1286,4 +1292,222 @@ export const validateAverageQuery = (query: unknown): GradesAverageFilters => {
   // Solo importa "semester": se reutiliza la validación del consolidado sin los demás filtros
   const { semester } = validateListGradesQuery({ semester: q.semester });
   return { semester };
+};
+// ---- Tareas ----
+const MAX_TASK_TITLE = 150;
+const MAX_TASK_DESCRIPTION = 500;
+const MAX_SUBTASKS = 30;
+const MAX_SUBTASK_TITLE = 150;
+
+export const validateTaskId = (value: unknown): string => validateUuidParam(value, "taskId");
+
+const parseSubtasks = (value: unknown, errors: string[]): TaskSubtask[] => {
+  if (!Array.isArray(value) || value.length > MAX_SUBTASKS) {
+    errors.push(`subtasks debe ser un arreglo de máximo ${MAX_SUBTASKS} elementos`);
+    return [];
+  }
+  const subtasks: TaskSubtask[] = [];
+  value.forEach((item, i) => {
+    const at = `subtasks[${i}]`;
+    if (!isPlainObject(item)) {
+      errors.push(`${at} debe ser un objeto`);
+      return;
+    }
+    const before = errors.length;
+    if (!isNonEmptyString(item.title) || item.title.trim().length > MAX_SUBTASK_TITLE) {
+      errors.push(`${at}.title es obligatorio (máximo ${MAX_SUBTASK_TITLE} caracteres)`);
+    }
+    if (item.completed !== undefined && typeof item.completed !== "boolean") {
+      errors.push(`${at}.completed debe ser true o false`);
+    }
+    if (item.id !== undefined && !isNonEmptyString(item.id)) {
+      errors.push(`${at}.id debe ser un texto no vacío`);
+    }
+    if (errors.length === before) {
+      subtasks.push({
+        id: typeof item.id === "string" ? item.id.trim() : randomUUID(),
+        title: (item.title as string).trim(),
+        completed: item.completed === true,
+      });
+    }
+  });
+  return subtasks;
+};
+
+export const validateCreateTask = (body: unknown): CreateTaskDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+
+  if (!isNonEmptyString(b.title) || b.title.trim().length > MAX_TASK_TITLE) {
+    errors.push(`title es obligatorio (máximo ${MAX_TASK_TITLE} caracteres)`);
+  }
+
+  if (typeof b.type !== "string" || !TASK_TYPES.includes(b.type as TaskType)) {
+    errors.push(`type es obligatorio y debe ser uno de: ${TASK_TYPES.join(", ")}`);
+  }
+
+  if (typeof b.priority !== "string" || !TASK_PRIORITIES.includes(b.priority as TaskPriority)) {
+    errors.push(`priority es obligatorio y debe ser uno de: ${TASK_PRIORITIES.join(", ")}`);
+  }
+
+  let description: string | undefined;
+  if (b.description !== undefined) {
+    if (typeof b.description !== "string" || b.description.length > MAX_TASK_DESCRIPTION) {
+      errors.push(`description debe tener máximo ${MAX_TASK_DESCRIPTION} caracteres`);
+    } else description = b.description.trim();
+  }
+
+  let subjectId: string | null | undefined;
+  if (b.subjectId !== undefined) {
+    if (b.subjectId === null) subjectId = null;
+    else if (!isUuid(b.subjectId)) errors.push("subjectId debe ser un UUID válido o null");
+    else subjectId = b.subjectId.toLowerCase();
+  }
+
+  let dueDate: string | null | undefined;
+  if (b.dueDate !== undefined) {
+    if (b.dueDate === null) dueDate = null;
+    else if (typeof b.dueDate !== "string" || !isValidDate(b.dueDate)) {
+      errors.push("dueDate debe tener formato YYYY-MM-DD o ser null");
+    } else dueDate = b.dueDate;
+  }
+
+  let dueTime: string | null | undefined;
+  if (b.dueTime !== undefined) {
+    if (b.dueTime === null) dueTime = null;
+    else if (typeof b.dueTime !== "string" || !TIME_REGEX.test(b.dueTime)) {
+      errors.push("dueTime debe tener formato HH:mm o ser null");
+    } else dueTime = b.dueTime;
+  }
+
+  let subtasks: TaskSubtask[] | undefined;
+  if (b.subtasks !== undefined) subtasks = parseSubtasks(b.subtasks, errors);
+
+  fail(errors);
+
+  return {
+    title: (b.title as string).trim(),
+    description,
+    type: b.type as TaskType,
+    priority: b.priority as TaskPriority,
+    subjectId,
+    dueDate,
+    dueTime,
+    subtasks,
+  };
+};
+
+// Mismas reglas que validateCreateTask, pero todo es opcional y se agrega status.
+export const validateUpdateTask = (body: unknown): UpdateTaskDto => {
+  const b = ensureObject(body);
+  const errors: string[] = [];
+  const dto: UpdateTaskDto = {};
+
+  if (b.title !== undefined) {
+    if (!isNonEmptyString(b.title) || b.title.trim().length > MAX_TASK_TITLE) {
+      errors.push(`title no puede estar vacío (máximo ${MAX_TASK_TITLE} caracteres)`);
+    } else dto.title = b.title.trim();
+  }
+
+  if (b.description !== undefined) {
+    if (typeof b.description !== "string" || b.description.length > MAX_TASK_DESCRIPTION) {
+      errors.push(`description debe tener máximo ${MAX_TASK_DESCRIPTION} caracteres`);
+    } else dto.description = b.description.trim();
+  }
+
+  if (b.type !== undefined) {
+    if (typeof b.type !== "string" || !TASK_TYPES.includes(b.type as TaskType)) {
+      errors.push(`type debe ser uno de: ${TASK_TYPES.join(", ")}`);
+    } else dto.type = b.type as TaskType;
+  }
+
+  if (b.status !== undefined) {
+    if (typeof b.status !== "string" || !TASK_STATUSES.includes(b.status as TaskStatus)) {
+      errors.push(`status debe ser uno de: ${TASK_STATUSES.join(", ")}`);
+    } else dto.status = b.status as TaskStatus;
+  }
+
+  if (b.priority !== undefined) {
+    if (typeof b.priority !== "string" || !TASK_PRIORITIES.includes(b.priority as TaskPriority)) {
+      errors.push(`priority debe ser uno de: ${TASK_PRIORITIES.join(", ")}`);
+    } else dto.priority = b.priority as TaskPriority;
+  }
+
+  if (b.subjectId !== undefined) {
+    if (b.subjectId === null) dto.subjectId = null;
+    else if (!isUuid(b.subjectId)) errors.push("subjectId debe ser un UUID válido o null");
+    else dto.subjectId = b.subjectId.toLowerCase();
+  }
+
+  if (b.dueDate !== undefined) {
+    if (b.dueDate === null) dto.dueDate = null;
+    else if (typeof b.dueDate !== "string" || !isValidDate(b.dueDate)) {
+      errors.push("dueDate debe tener formato YYYY-MM-DD o ser null");
+    } else dto.dueDate = b.dueDate;
+  }
+
+  if (b.dueTime !== undefined) {
+    if (b.dueTime === null) dto.dueTime = null;
+    else if (typeof b.dueTime !== "string" || !TIME_REGEX.test(b.dueTime)) {
+      errors.push("dueTime debe tener formato HH:mm o ser null");
+    } else dto.dueTime = b.dueTime;
+  }
+
+  if (b.subtasks !== undefined) dto.subtasks = parseSubtasks(b.subtasks, errors);
+
+  fail(errors);
+
+  if (Object.keys(dto).length === 0) {
+    throw new HttpError(400, "Datos inválidos", [
+      "Debes enviar al menos un campo: title, description, type, status, priority, subjectId, dueDate, dueTime o subtasks",
+    ]);
+  }
+
+  return dto;
+};
+
+export const validateListTasksQuery = (query: unknown): TaskListQueryDto => {
+  const q = (query ?? {}) as Record<string, unknown>;
+  const errors: string[] = [];
+  const filters: TaskListQueryDto = {};
+
+  const status = readQueryText(q, "status");
+  if (status !== undefined) {
+    if (typeof status !== "string" || !TASK_STATUSES.includes(status.trim() as TaskStatus)) {
+      errors.push(`status debe ser uno de: ${TASK_STATUSES.join(", ")}`);
+    } else filters.status = status.trim() as TaskStatus;
+  }
+
+  const type = readQueryText(q, "type");
+  if (type !== undefined) {
+    if (typeof type !== "string" || !TASK_TYPES.includes(type.trim() as TaskType)) {
+      errors.push(`type debe ser uno de: ${TASK_TYPES.join(", ")}`);
+    } else filters.type = type.trim() as TaskType;
+  }
+
+  const priority = readQueryText(q, "priority");
+  if (priority !== undefined) {
+    if (typeof priority !== "string" || !TASK_PRIORITIES.includes(priority.trim() as TaskPriority)) {
+      errors.push(`priority debe ser uno de: ${TASK_PRIORITIES.join(", ")}`);
+    } else filters.priority = priority.trim() as TaskPriority;
+  }
+
+  const subjectId = readQueryText(q, "subjectId");
+  if (subjectId !== undefined) {
+    if (!isUuid(subjectId)) errors.push("subjectId debe ser un UUID válido");
+    else filters.subjectId = subjectId.toLowerCase();
+  }
+
+  const dueDate = readQueryText(q, "dueDate");
+  if (dueDate !== undefined) {
+    if (typeof dueDate !== "string" || !isValidDate(dueDate.trim())) {
+      errors.push("dueDate debe tener formato YYYY-MM-DD");
+    } else filters.dueDate = dueDate.trim();
+  }
+
+  const search = readQuerySearch(q, "search", MAX_SEARCH, errors);
+  if (search !== undefined) filters.search = search;
+
+  fail(errors);
+  return filters;
 };
