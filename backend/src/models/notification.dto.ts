@@ -1,4 +1,4 @@
-import { NotificationCategory, NotificationSource } from "./notification.model";
+import { NotificationCategory, NotificationKind, NotificationSource } from "./notification.model";
 
 export interface ListNotificationsQueryDto {
   category?: NotificationCategory;
@@ -13,6 +13,8 @@ export interface NotificationDto {
   body: string;
   category: NotificationCategory;
   source: NotificationSource;
+  kind: NotificationKind;
+  taskId: string | null;
   payload: Record<string, unknown> | null;
   sourcePublishedAt: string | null;
   isRead: boolean;
@@ -29,4 +31,9 @@ export interface ListNotificationsResponseDto {
     totalPages: number;
     unreadCount: number;
   };
+}
+
+export interface MarkReadResponseDto {
+  message: string;
+  updated: number;
 }

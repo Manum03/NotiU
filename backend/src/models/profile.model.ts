@@ -1,5 +1,5 @@
 export interface Profile {
-  userId: number;
+  userId: string;
   bio?: string;
   career: string;
   semester: number;

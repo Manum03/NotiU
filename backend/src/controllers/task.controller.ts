@@ -1,147 +1,80 @@
 // Controla las solicitudes HTTP del modulo de tareas
 // Recibe los datos, identifica al usuario, llama al servicio correspondiente y devuelve respuestas
-import { Request, Response, NextFunction } from "express";
-
+import { Request, Response } from "express";
+import { AuthLocals } from "../middlewares/auth.middleware";
+import { MessageResponseDto } from "../models/auth.dto";
+import { TaskListResponseDto, TaskResponseDto } from "../models/task.dto";
+import { taskService } from "../services/task.service";
 import {
-  createTask,
-  listTasks,
-  getTaskById,
-  updateTask,
-  deleteTask,
-  completeTask,
-} from "../services/task.service";
+  validateCreateTask,
+  validateListTasksQuery,
+  validateTaskId,
+  validateUpdateTask,
+} from "../utils/task.validators";
 
-import {
-  CreateTaskDto,
-  TaskListQueryDto,
-  UpdateTaskDto,
-} from "../models/task.dto";
+type TaskMessageResponse = { message: string; task: TaskResponseDto };
 
-function getUserId(res: Response): number {
-  const session = res.locals.session;
+export const taskController = {
+  // Crear una tarea
+  async create(req: Request, res: Response<TaskMessageResponse>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const dto = validateCreateTask(req.body);
+    const task = await taskService.createTask(session.userId, dto);
+    res.status(201).json({ message: "Tarea creada correctamente", task });
+  },
 
-  if (!session || typeof session.userId !== "number") {
-    throw new Error("No se encontró la sesión del usuario");
-  }
+  // Consultar todas las tareas (manuales e importadas de Moodle/Classroom)
+  async list(req: Request, res: Response<TaskListResponseDto>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const filters = validateListTasksQuery(req.query);
+    res.status(200).json(await taskService.listTasks(session.userId, filters));
+  },
 
-  return session.userId;
-}
+  // Consultar una tarea específica
+  async get(req: Request, res: Response<{ task: TaskResponseDto }>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const taskId = validateTaskId(req.params.taskId);
+    res.status(200).json({ task: await taskService.getTaskById(session.userId, taskId) });
+  },
 
-function getTaskId(req: Request): string {
-  const taskId = req.params.taskId;
+  // Actualizar una tarea
+  async update(req: Request, res: Response<TaskMessageResponse>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const taskId = validateTaskId(req.params.taskId);
+    const dto = validateUpdateTask(req.body);
+    const task = await taskService.updateTask(session.userId, taskId, dto);
+    res.status(200).json({ message: "Tarea actualizada correctamente", task });
+  },
 
-  if (typeof taskId !== "string" || !taskId.trim()) {
-    throw new Error("Identificador de tarea inválido");
-  }
+  // Marcar una tarea como realizada
+  async complete(req: Request, res: Response<TaskMessageResponse>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const taskId = validateTaskId(req.params.taskId);
+    const task = await taskService.completeTask(session.userId, taskId);
+    res.status(200).json({ message: "Tarea marcada como realizada", task });
+  },
 
-  return taskId;
-}
+  // Archivar una tarea
+  async archive(req: Request, res: Response<TaskMessageResponse>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const taskId = validateTaskId(req.params.taskId);
+    const task = await taskService.archiveTask(session.userId, taskId);
+    res.status(200).json({ message: "Tarea archivada", task });
+  },
 
-export function createTaskController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const userId = getUserId(res);
-    const data = req.body as CreateTaskDto;
+  // Restaurar una tarea archivada
+  async restore(req: Request, res: Response<TaskMessageResponse>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const taskId = validateTaskId(req.params.taskId);
+    const task = await taskService.restoreTask(session.userId, taskId);
+    res.status(200).json({ message: "Tarea restaurada", task });
+  },
 
-    const task = createTask(userId, data);
-
-    res.status(201).json({
-      message: "Tarea creada correctamente",
-      task,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-export function listTasksController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const userId = getUserId(res);
-    const filters = req.query as TaskListQueryDto;
-
-    const result = listTasks(userId, filters);
-
-    res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-}
-
-export function getTaskByIdController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const userId = getUserId(res);
-    const task = getTaskById(userId, getTaskId(req));
-
-    res.status(200).json({ task });
-  } catch (error) {
-    next(error);
-  }
-}
-
-export function updateTaskController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const userId = getUserId(res);
-    const data = req.body as UpdateTaskDto;
-
-    const task = updateTask(userId, getTaskId(req), data);
-
-    res.status(200).json({
-      message: "Tarea actualizada correctamente",
-      task,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-export function deleteTaskController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const userId = getUserId(res);
-
-    deleteTask(userId, getTaskId(req));
-
-    res.status(200).json({
-      message: "Tarea eliminada correctamente",
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-export function completeTaskController(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const userId = getUserId(res);
-
-    const task = completeTask(userId, getTaskId(req));
-
-    res.status(200).json({
-      message: "Tarea marcada como realizada",
-      task,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
+  // Eliminar una tarea (solo las creadas en NotiU)
+  async remove(req: Request, res: Response<MessageResponseDto>): Promise<void> {
+    const { session } = res.locals as AuthLocals;
+    const taskId = validateTaskId(req.params.taskId);
+    await taskService.deleteTask(session.userId, taskId);
+    res.status(200).json({ message: "Tarea eliminada correctamente" });
+  },
+};

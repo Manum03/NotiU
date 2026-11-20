@@ -2,21 +2,31 @@
   "name": "notiu-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "API de NotiU (datos en memoria)",
+  "description": "API de NotiU: Express + Firebase Auth + Firestore, integración con Moodle (iCal) y Google Classroom",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "emulators": "npx firebase-tools emulators:start --project demo-notiu",
+    "test:e2e": "npx firebase-tools emulators:exec --only auth --project demo-notiu \"tsx tests/api.e2e.ts\""
   },
   "dependencies": {
-    "express": "^5.3.0"
+    "dotenv": "^18.0.10",
+    "expo-server-sdk": "^8.0.0",
+    "express": "^5.3.0",
+    "firebase-admin": "^14.5.1",
+    "google-auth-library": "^11.3.4",
+    "node-ical": "^0.27.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

@@ -64,3 +64,10 @@ export const validateListNotificationsQuery = (query: unknown): ListNotification
   if (errors.length > 0) throw new HttpError(400, "Datos inválidos", errors);
   return { category, read, page, limit };
 };
+// IDs de documentos de Firestore (20 caracteres alfanuméricos)
+export const validateNotificationId = (value: unknown): string => {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(value)) {
+    throw new HttpError(400, "Datos inválidos", ["notificationId no es válido"]);
+  }
+  return value;
+};

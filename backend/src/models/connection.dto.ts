@@ -61,7 +61,7 @@ export interface ListConnectionsResponseDto {
 }
 // ---- Enviar solicitud (POST /api/connections/requests) ----
 export interface CreateConnectionRequestDto {
-  targetUserId: number;
+  targetUserId: string;
   message?: string;
 }
 

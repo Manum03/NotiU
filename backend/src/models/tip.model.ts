@@ -14,7 +14,7 @@ export interface Tip {
 
 // Relación usuario <-> tip guardado en favoritos
 export interface SavedTip {
-  userId: number;
+  userId: string;
   tipId: string;
   savedAt: Date;
 }

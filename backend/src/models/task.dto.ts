@@ -1,6 +1,6 @@
-
 import {
   TaskPriority,
+  TaskSource,
   TaskStatus,
   TaskType,
   TaskSubtask,
@@ -17,6 +17,8 @@ export interface CreateTaskDto {
   subtasks?: TaskSubtask[];
 }
 
+// En tareas importadas (Moodle/Classroom) no se pueden cambiar título, descripción,
+// tipo ni fecha: los define la plataforma y se sobrescribirían en la siguiente sincronización.
 export interface UpdateTaskDto {
   title?: string;
   description?: string;
@@ -44,6 +46,15 @@ export interface TaskResponseDto {
   createdAt: Date;
   updatedAt: Date;
   completedAt: Date | null;
+  archivedAt: Date | null;
+  isArchived: boolean;
+
+  // ---- Integraciones ----
+  source: TaskSource;
+  courseName: string | null;
+  url: string | null;
+  dueAt: string | null; // instante exacto (ISO) calculado con dueDate + dueTime
+  isOverdue: boolean;
 }
 
 export interface TaskListQueryDto {
@@ -53,6 +64,8 @@ export interface TaskListQueryDto {
   subjectId?: string;
   dueDate?: string;
   search?: string;
+  source?: TaskSource;
+  archived?: boolean; // true = solo archivadas; por defecto, solo las no archivadas
 }
 
 export interface TaskListResponseDto {

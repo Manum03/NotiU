@@ -7,8 +7,8 @@ export type ConnectionAction = (typeof CONNECTION_ACTIONS)[number];
 // Una solicitud aceptada ES la conexión: el id de la solicitud y el de la conexión coinciden
 export interface Connection {
   id: string;
-  requesterId: number; // quien envía la solicitud
-  targetId: number; // quien la recibe (el único que puede aceptarla o rechazarla)
+  requesterId: string; // quien envía la solicitud
+  targetId: string; // quien la recibe (el único que puede aceptarla o rechazarla)
   message: string;
   status: ConnectionStatus;
   createdAt: Date;

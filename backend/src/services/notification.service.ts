@@ -1,29 +1,40 @@
-import { randomUUID } from "node:crypto";
+import { db } from "../config/firebase";
 import {
   ListNotificationsQueryDto,
   ListNotificationsResponseDto,
+  MarkReadResponseDto,
   NotificationDto,
 } from "../models/notification.dto";
 import { Notification } from "../models/notification.model";
+import { HttpError } from "../utils/http-error";
+import { chunk, iso, toDate, toDateOrNow } from "../utils/firestore";
+import { pushService } from "./notifications/push.service";
+import { settingsService } from "./settings.service";
 
-const notifications: Notification[] = [];
+// Notificaciones en Firestore: `users/{uid}/notifications/{id}`
+const col = (userId: string) => db.collection("users").doc(userId).collection("notifications");
 
-type NewNotification = Pick<Notification, "userId" | "title" | "body" | "category" | "source"> &
-  Partial<Pick<Notification, "externalId" | "payload" | "sourcePublishedAt" | "readAt" | "createdAt">>;
+// Para listar se leen las más recientes y se filtra en memoria: evita índices compuestos.
+const MAX_SCAN = 300;
 
-const create = (data: NewNotification): Notification => {
-  const notification: Notification = {
-    id: randomUUID(),
-    externalId: null,
-    payload: null,
-    sourcePublishedAt: null,
-    readAt: null,
-    createdAt: new Date(),
-    ...data,
-  };
-  notifications.push(notification);
-  return notification;
-};
+export type NewNotification = Pick<Notification, "title" | "body" | "category" | "source" | "kind"> &
+  Partial<Pick<Notification, "taskId" | "externalId" | "payload" | "sourcePublishedAt">>;
+
+const fromDoc = (userId: string, id: string, d: FirebaseFirestore.DocumentData): Notification => ({
+  id,
+  userId,
+  title: String(d.title ?? ""),
+  body: String(d.body ?? ""),
+  category: d.category ?? "INFORMATIVE",
+  source: d.source ?? "SYSTEM",
+  kind: d.kind ?? "SYSTEM",
+  taskId: d.taskId ?? null,
+  externalId: d.externalId ?? null,
+  payload: d.payload ?? null,
+  sourcePublishedAt: toDate(d.sourcePublishedAt),
+  readAt: toDate(d.readAt),
+  createdAt: toDateOrNow(d.createdAt),
+});
 
 const toDto = (n: Notification): NotificationDto => ({
   id: n.id,
@@ -31,27 +42,61 @@ const toDto = (n: Notification): NotificationDto => ({
   body: n.body,
   category: n.category,
   source: n.source,
+  kind: n.kind,
+  taskId: n.taskId,
   payload: n.payload,
-  sourcePublishedAt: n.sourcePublishedAt?.toISOString() ?? null,
+  sourcePublishedAt: iso(n.sourcePublishedAt),
   isRead: n.readAt !== null,
-  readAt: n.readAt?.toISOString() ?? null,
+  readAt: iso(n.readAt),
   createdAt: n.createdAt.toISOString(),
 });
 
 export const notificationService = {
-  create,
+  async create(userId: string, data: NewNotification): Promise<Notification> {
+    const ref = col(userId).doc();
+    const notification: Notification = {
+      id: ref.id,
+      userId,
+      taskId: null,
+      externalId: null,
+      payload: null,
+      sourcePublishedAt: null,
+      readAt: null,
+      createdAt: new Date(),
+      ...data,
+    };
+    const { id: _id, ...stored } = notification;
+    await ref.set(stored);
+    return notification;
+  },
 
-  list(userId: number, query: ListNotificationsQueryDto): ListNotificationsResponseDto {
-    const mine = notifications.filter((n) => n.userId === userId);
+  // Guarda la notificación y, si el usuario tiene push activado, la envía al celular
+  async notifyUser(userId: string, data: NewNotification): Promise<Notification> {
+    const notification = await notificationService.create(userId, data);
+    const settings = await settingsService.getSettings(userId);
+    if (settings.notifications.push) {
+      await pushService.sendToUser(userId, {
+        title: notification.title,
+        body: notification.body,
+        data: { notificationId: notification.id, taskId: notification.taskId, kind: notification.kind },
+      });
+    }
+    return notification;
+  },
 
-    const filtered = mine
+  async list(userId: string, query: ListNotificationsQueryDto): Promise<ListNotificationsResponseDto> {
+    const [snap, unread] = await Promise.all([
+      col(userId).orderBy("createdAt", "desc").limit(MAX_SCAN).get(),
+      col(userId).where("readAt", "==", null).count().get(),
+    ]);
+
+    const filtered = snap.docs
+      .map((d) => fromDoc(userId, d.id, d.data()))
       .filter((n) => query.category === undefined || n.category === query.category)
-      .filter((n) => query.read === undefined || (n.readAt !== null) === query.read)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      .filter((n) => query.read === undefined || (n.readAt !== null) === query.read);
 
     const total = filtered.length;
     const start = (query.page - 1) * query.limit;
-
     return {
       data: filtered.slice(start, start + query.limit).map(toDto),
       meta: {
@@ -59,49 +104,31 @@ export const notificationService = {
         limit: query.limit,
         total,
         totalPages: Math.ceil(total / query.limit),
-        unreadCount: mine.filter((n) => n.readAt === null).length,
+        unreadCount: unread.data().count,
       },
     };
   },
+
+  async markRead(userId: string, notificationId: string): Promise<NotificationDto> {
+    const ref = col(userId).doc(notificationId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpError(404, "Notificación no encontrada");
+    const n = fromDoc(userId, snap.id, snap.data() ?? {});
+    if (!n.readAt) {
+      n.readAt = new Date();
+      await ref.update({ readAt: n.readAt });
+    }
+    return toDto(n);
+  },
+
+  async markAllRead(userId: string): Promise<MarkReadResponseDto> {
+    const snap = await col(userId).where("readAt", "==", null).get();
+    const now = new Date();
+    for (const group of chunk(snap.docs, 400)) {
+      const batch = db.batch();
+      group.forEach((d) => batch.update(d.ref, { readAt: now }));
+      await batch.commit();
+    }
+    return { message: "Notificaciones marcadas como leídas", updated: snap.size };
+  },
 };
-
-// ---- Datos de prueba para admin@notiu.com (id 1). Temporal. ----
-const minutesAgo = (m: number): Date => new Date(Date.now() - m * 60_000);
-
-const seed = (
-  title: string,
-  body: string,
-  category: Notification["category"],
-  source: Notification["source"],
-  agoMin: number,
-  read = false,
-  payload: Notification["payload"] = null,
-): void => {
-  create({
-    userId: 1,
-    title,
-    body,
-    category,
-    source,
-    payload,
-    createdAt: minutesAgo(agoMin),
-    sourcePublishedAt: minutesAgo(agoMin + 2),
-    readAt: read ? minutesAgo(agoMin - 1) : null,
-  });
-};
-
-seed("Clase cancelada", "Se cancela la clase de hoy.", "URGENT", "MOODLE", 5, false, {
-  materia: "Construcción de Software",
-  hora: "14:00",
-  nuevoEstado: "cancelada",
-});
-seed("Cambio de salón", "La clase pasa al salón B-204.", "URGENT", "CLASSROOM", 40, false, {
-  materia: "Bases de Datos",
-  hora: "10:00",
-  nuevoEstado: "salón B-204",
-});
-seed("Parcial reprogramado", "El parcial 2 se mueve al viernes.", "URGENT", "MOODLE", 120, true);
-seed("Nueva tarea publicada", "Entrega del taller 3.", "INFORMATIVE", "CLASSROOM", 300);
-seed("Charla de emprendimiento", "Auditorio principal, 4 p. m.", "INFORMATIVE", "MOODLE", 600);
-seed("Feria de empleo", "Inscripciones abiertas.", "INFORMATIVE", "MOODLE", 1500, true);
-seed("Recordatorio de entrega", "Taller 2 vence mañana.", "INFORMATIVE", "SYSTEM", 2000);

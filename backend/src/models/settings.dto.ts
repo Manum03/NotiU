@@ -6,6 +6,7 @@ export type SettingsResponseDto = Settings;
 export interface UpdateSettingsDto {
   theme?: Settings["theme"];
   notifications?: Partial<Settings["notifications"]>;
+  reminders?: Partial<Settings["reminders"]>;
   privacy?: Partial<Settings["privacy"]>;
 }
 

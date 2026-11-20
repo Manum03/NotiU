@@ -1,15 +1,16 @@
 export type UserRole = "student" | "teacher" | "admin";
 
+// El id es el UID de Firebase Authentication. La contraseña la gestiona Firebase:
+// el backend nunca la ve ni la guarda.
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
-  passwordHash: string;
+  photoUrl: string | null;
   role: UserRole;
   createdAt: Date;
 }
 
-// Lo que se devuelve al cliente: nunca incluye el hash de la contraseña
-export type PublicUser = Omit<User, "passwordHash">;
+export type PublicUser = User;
 
-export const toPublicUser = ({ passwordHash, ...rest }: User): PublicUser => rest;
+export const toPublicUser = (user: User): PublicUser => ({ ...user });

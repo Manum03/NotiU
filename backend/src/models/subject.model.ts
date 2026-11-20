@@ -53,7 +53,7 @@ export interface SubjectReminder {
 
 export interface Subject {
   id: string;
-  userId: number;
+  userId: string;
 
   name: string;
   code: string;

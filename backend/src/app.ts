@@ -14,6 +14,8 @@ import { connectionsRouter } from "./routes/connections.routes";
 import { studyGroupsRouter } from "./routes/study-groups.routes";
 import { tipsRouter } from "./routes/tips.routes";
 import { tasksRouter } from "./routes/tasks.routes";
+import { integrationsRouter } from "./routes/integrations.routes";
+import { devicesRouter } from "./routes/devices.routes";
 
 export const app = express();
 
@@ -39,6 +41,9 @@ app.use("/api/peers", peersRouter);
 app.use("/api/connections", connectionsRouter);
 app.use("/api/study-groups", studyGroupsRouter);
 app.use("/api/tips", tipsRouter);
+// Integraciones con plataformas externas (Moodle, Classroom) y dispositivos para push
+app.use("/api/integrations", integrationsRouter);
+app.use("/api/devices", devicesRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

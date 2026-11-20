@@ -1,29 +1,5 @@
-import { PublicUser, UserRole } from "./user.model";
-
-// ---- Request DTOs ----
-export interface RegisterDto {
-  name: string;
-  email: string;
-  password: string;
-  role?: UserRole;
-}
-
-export interface LoginDto {
-  email: string;
-  password: string;
-}
-
-export interface ChangePasswordDto {
-  currentPassword: string;
-  newPassword: string;
-}
-
-// ---- Response DTOs ----
-export interface AuthResponseDto {
-  token: string;
-  expiresAt: string;
-  user: PublicUser;
-}
+// Registro, login, cambio de contraseña y cierre de sesión ahora los maneja
+// Firebase Authentication directamente desde la app móvil.
 
 export interface MessageResponseDto {
   message: string;

@@ -1,9 +1,13 @@
-import { ChangePasswordDto, LoginDto, RegisterDto } from "../models/auth.dto";
-import { UserRole } from "../models/user.model";
 import { HttpError } from "./http-error";
 import { UpdateProfileDto } from "../models/profile.dto";
 import { UpdateSettingsDto } from "../models/settings.dto";
-import { THEMES, Theme } from "../models/settings.model";
+import {
+  MAX_REMINDER_OFFSETS,
+  MAX_REMINDER_OFFSET_MINUTES,
+  MIN_REMINDER_OFFSET_MINUTES,
+  THEMES,
+  Theme,
+} from "../models/settings.model";
 import { CreateSubjectDto,ListSubjectsFilters,UpdateSubjectDto,} from "../models/subject.dto";
 import {ScheduleBlock,WEEK_DAYS,WeekDay,SUBJECT_STATUSES,SUBJECT_PRIORITIES,ACTIVITY_TYPES,SubjectStatus,SubjectPriority,ActivityType,SubjectReminder,} from "../models/subject.model";
 import { CreateGradeDto, GradesAverageFilters, ListGradesFilters, UpdateGradeDto } from "../models/grade.dto";
@@ -14,10 +18,6 @@ import { CONNECTION_ACTIONS, ConnectionAction } from "../models/connection.model
 import { CreateStudyGroupDto, ListStudyGroupsFilters } from "../models/study-group.dto";
 import { MAX_GROUP_MEMBERS, MIN_GROUP_MEMBERS } from "../models/study-group.model";
 import { ListTipsFilters } from "../models/tip.dto";
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ROLES: UserRole[] = ["student", "teacher", "admin"];
-const MIN_PASSWORD = 8;
 
 const isNonEmptyString = (v: unknown): v is string =>
   typeof v === "string" && v.trim().length > 0;
@@ -31,67 +31,6 @@ const ensureObject = (body: unknown): Record<string, unknown> => {
 
 const fail = (errors: string[]): void => {
   if (errors.length > 0) throw new HttpError(400, "Datos inválidos", errors);
-};
-
-const checkPassword = (value: unknown, field: string, errors: string[]): void => {
-  if (!isNonEmptyString(value)) {
-    errors.push(`${field} es obligatorio`);
-  } else if (value.length < MIN_PASSWORD) {
-    errors.push(`${field} debe tener al menos ${MIN_PASSWORD} caracteres`);
-  }
-};
-
-export const validateRegister = (body: unknown): RegisterDto => {
-  const b = ensureObject(body);
-  const errors: string[] = [];
-
-  if (!isNonEmptyString(b.name)) errors.push("name es obligatorio");
-  if (!isNonEmptyString(b.email) || !EMAIL_REGEX.test(b.email)) {
-    errors.push("email debe ser un correo válido");
-  }
-  checkPassword(b.password, "password", errors);
-  if (b.role !== undefined && !ROLES.includes(b.role as UserRole)) {
-    errors.push(`role debe ser uno de: ${ROLES.join(", ")}`);
-  }
-  fail(errors);
-
-  return {
-    name: (b.name as string).trim(),
-    email: (b.email as string).trim().toLowerCase(),
-    password: b.password as string,
-    role: b.role as UserRole | undefined,
-  };
-};
-
-export const validateLogin = (body: unknown): LoginDto => {
-  const b = ensureObject(body);
-  const errors: string[] = [];
-
-  if (!isNonEmptyString(b.email)) errors.push("email es obligatorio");
-  if (!isNonEmptyString(b.password)) errors.push("password es obligatorio");
-  fail(errors);
-
-  return {
-    email: (b.email as string).trim().toLowerCase(),
-    password: b.password as string,
-  };
-};
-
-export const validateChangePassword = (body: unknown): ChangePasswordDto => {
-  const b = ensureObject(body);
-  const errors: string[] = [];
-
-  if (!isNonEmptyString(b.currentPassword)) errors.push("currentPassword es obligatorio");
-  checkPassword(b.newPassword, "newPassword", errors);
-  if (errors.length === 0 && b.currentPassword === b.newPassword) {
-    errors.push("newPassword debe ser diferente a currentPassword");
-  }
-  fail(errors);
-
-  return {
-    currentPassword: b.currentPassword as string,
-    newPassword: b.newPassword as string,
-  };
 };
 
 // ---- Perfil ----
@@ -207,6 +146,30 @@ export const validateUpdateSettings = (body: unknown): UpdateSettingsDto => {
     }
   }
 
+  if (b.reminders !== undefined) {
+    const offsets = isPlainObject(b.reminders) ? b.reminders.offsetsMinutes : undefined;
+    if (!isPlainObject(b.reminders) || offsets === undefined) {
+      errors.push("reminders debe ser un objeto con offsetsMinutes");
+    } else if (
+      !Array.isArray(offsets) ||
+      offsets.length > MAX_REMINDER_OFFSETS ||
+      !offsets.every(
+        (n) =>
+          Number.isInteger(n) &&
+          (n as number) >= MIN_REMINDER_OFFSET_MINUTES &&
+          (n as number) <= MAX_REMINDER_OFFSET_MINUTES,
+      )
+    ) {
+      errors.push(
+        `reminders.offsetsMinutes debe ser una lista de máximo ${MAX_REMINDER_OFFSETS} enteros entre ` +
+          `${MIN_REMINDER_OFFSET_MINUTES} y ${MAX_REMINDER_OFFSET_MINUTES} (minutos antes de la entrega)`,
+      );
+    } else {
+      // Sin duplicados y de mayor a menor (primero el más anticipado)
+      dto.reminders = { offsetsMinutes: [...new Set(offsets as number[])].sort((a, b) => b - a) };
+    }
+  }
+
   if (b.privacy !== undefined) {
     if (!isPlainObject(b.privacy)) {
       errors.push("privacy debe ser un objeto");
@@ -225,9 +188,14 @@ export const validateUpdateSettings = (body: unknown): UpdateSettingsDto => {
 
   fail(errors);
 
-  if (dto.theme === undefined && dto.notifications === undefined && dto.privacy === undefined) {
+  if (
+    dto.theme === undefined &&
+    dto.notifications === undefined &&
+    dto.reminders === undefined &&
+    dto.privacy === undefined
+  ) {
     throw new HttpError(400, "Datos inválidos", [
-      "Debes enviar al menos un ajuste: theme, notifications (email, push, studyReminders) o privacy (showProfileToPeers)",
+      "Debes enviar al menos un ajuste: theme, notifications (email, push, studyReminders), reminders (offsetsMinutes) o privacy (showProfileToPeers)",
     ]);
   }
 
@@ -1108,15 +1076,10 @@ export const validateCreateConnectionRequest = (body: unknown): CreateConnection
   const b = ensureObject(body);
   const errors: string[] = [];
 
-  // Los IDs de usuario se exponen como texto ("2"), pero internamente son números
+  // Los IDs de usuario son UIDs de Firebase (texto alfanumérico de hasta 128 caracteres)
   const raw = b.targetUserId;
-  const targetUserId =
-    typeof raw === "string" && /^\d{1,9}$/.test(raw.trim())
-      ? Number(raw.trim())
-      : typeof raw === "number" && Number.isInteger(raw)
-        ? raw
-        : NaN;
-  if (!(targetUserId >= 1)) errors.push("targetUserId es obligatorio y debe ser un ID de usuario válido");
+  const targetUserId = typeof raw === "string" ? raw.trim() : "";
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetUserId)) errors.push("targetUserId es obligatorio y debe ser un ID de usuario válido");
 
   let message: string | undefined;
   if (b.message !== undefined) {

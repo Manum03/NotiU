@@ -4,7 +4,7 @@ export const MAX_GROUP_MEMBERS = 50;
 export type StudyGroupRole = "admin" | "member";
 
 export interface StudyGroupMember {
-  userId: number;
+  userId: string;
   role: StudyGroupRole;
   joinedAt: Date;
 }
@@ -15,7 +15,7 @@ export interface StudyGroup {
   name: string;
   description: string;
   subjectName: string;
-  creatorId: number;
+  creatorId: string;
   maxMembers: number;
   schedule?: string; // texto libre, por ejemplo "Martes 18:00"
   meetingLink?: string;
