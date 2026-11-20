@@ -7,7 +7,7 @@
 | **Asignatura** | Construcción de Software |
 | **Docente** | Diego Andrés Baquero Tibocha |
 | **Integrantes** | Alejandro Rodríguez, Alejandro Martínez, David Muñoz, Yorman Sanabria y Jireth Suárez |
-| **Versión actual** | `v0.6.1` |
+| **Versión actual** | `v0.7.0` |
 | **Repositorio** | https://github.com/Manum03/NotiU |
 | **Colección Postman** | [NotiU-Workspace (Colección oficial compartida)](https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share&creator=59230493) |
 
@@ -75,7 +75,7 @@ La app usa **Firebase Authentication** (SDK web de Firebase, funciona en **Expo 
 
 Ya funciona con el backend: registro, inicio de sesión (la sesión queda guardada), recuperación de contraseña, cierre de sesión (desde el avatar), Inicio, Materias, Nueva tarea/recordatorio/nota, Recordatorios (completar, subtareas, archivar, restaurar y eliminar) y **conectar Moodle** (tarjeta *Universidad / Plataforma* del Inicio).
 
-Pendiente: inicio de sesión con Google, conexión con Classroom y notificaciones push (requieren *development build*), y las pantallas de Notificaciones y Perfil. Ver `CODEX_TAREAS.md`.
+También están Notificaciones, Perfil (con los tiempos de recordatorio), Detalle de tarea, Conexiones, inicio de sesión con Google, conexión con Classroom y notificaciones push. Estas tres últimas requieren *development build* (sección siguiente). Lo que falta está en [Próximos pasos](#próximos-pasos).
 
 ### Development build (push, Google Sign-In y Classroom)
 
@@ -113,7 +113,7 @@ API REST construida con **Node.js**, **TypeScript** y **Express 5**, con **Fireb
 - **Seguridad:** los secretos (enlace iCal y refresh token de Google) se guardan **cifrados con AES-256-GCM**. Las URLs que escribe el usuario se validan para que no apunten a redes internas. Las reglas de Firestore bloquean todo acceso directo desde clientes.
 - **Validaciones y errores:** se mantienen los mismos formatos de antes (`400` con `details`, `401`, `403`, `404`, `409`, `429`, `500`).
 
-### Cobertura de Endpoints (`v0.6.0`)
+### Cobertura de Endpoints (`v0.7.0`)
 
 Base `http://localhost:3000`.
 
@@ -272,7 +272,32 @@ Flujo sugerido: `GET /api/auth/me` → `PUT /api/integrations/moodle` con `{"ica
 
 ---
 
+## Próximos pasos
+
+**Para probar y publicar**
+- Compilar la *development build* y probar en un celular real el push, el inicio de sesión con Google y la conexión con Classroom (pasos arriba). Hasta ahora solo se han verificado con compilación y pruebas automáticas.
+- Publicar el backend en un servidor siempre encendido (por ejemplo Render, Railway, Fly.io o Cloud Run). Mientras corra en un portátil, la sincronización y los recordatorios se detienen al apagarlo. El plan gratuito de Firebase no incluye Cloud Functions.
+- Compilar los `.tex` (que `terminos_y_condiciones.tex` siga cabiendo en una página) y revisar el texto legal sobre datos de Google ("Uso Limitado").
+
+**Pantallas que faltan en la app** (el backend ya tiene los endpoints)
+- Calificaciones por cortes y proyección de nota (`/api/subjects/:id/grades`, `/api/subjects/:id/progress`, `/api/grades`).
+- Apuntes (`/api/notes`).
+- Compañeros y conexiones (`/api/peers`, `/api/connections`) y grupos de estudio (`/api/study-groups`).
+- Tips de estudio (`/api/tips`) y perfil académico (`/api/profile`).
+- Mi Espacio / Plan de Estudio con temporizador Pomodoro (diseñado, sin backend ni pantalla).
+
+**Mejoras opcionales**
+- Recibos de Expo: guardar los `id` de los tickets y, en un job cada 15 minutos, consultar `getPushNotificationReceiptsAsync` para borrar los tokens con `DeviceNotRegistered`.
+- Correo: respetar `settings.notifications.email` con un resumen diario (Resend o Nodemailer).
+- Límite de peticiones (`express-rate-limit`) en `/api/integrations/*`.
+- Pruebas automáticas para la app móvil (hoy se valida con `tsc`, `expo lint` y `expo export`).
+- Verificación de Google para Classroom si la app va a superar 100 usuarios.
+
+---
+
 ## Notas de Versión (*Release Notes*)
+
+- **`v0.7.0` (19 nov 2026):** Todos los módulos del backend pasan a **Firestore** (materias, notas, apuntes, conexiones, grupos con transacciones y tips) y se elimina la caché de usuarios (115 pruebas e2e). App móvil con **inicio de sesión con Google**, **conexión con Classroom**, **notificaciones push** (Expo), pantallas de **Notificaciones**, **Perfil** con ajustes de recordatorios, **Detalle de tarea** y **Conexiones**, configuración de EAS y ESLint. Limpieza: código y dependencias sin uso, texto con tildes dañadas en Materias reparado, fuentes cargadas por estilo (la app solo incluye las que usa) y Playfair Display cargada de nuevo.
 
 - **`v0.6.1` (19 nov 2026):** App móvil conectada a Firebase Auth (registro, login persistente, recuperar contraseña y cerrar sesión), endpoints para archivar y restaurar tareas, pantalla para conectar Moodle desde el Inicio y recarga del Inicio al volver a la pantalla.
 - **`v0.6.0` (19 nov 2026):** Autenticación con **Firebase Auth** (ID tokens) y persistencia en **Firestore** para usuarios, ajustes y notificaciones. Módulo de **tareas** unificado (`/api/tasks`: las creadas en NotiU y las importadas, con prioridad, subtareas y recordatorios), **integraciones** con Moodle por iCal y Google Classroom por OAuth (`/api/integrations`), **dispositivos** para push con Expo (`/api/devices`), motor de sincronización con detección de tareas nuevas y cambios de fecha, recordatorios configurables, jobs periódicos, cifrado de secretos y pruebas de punta a punta (`npm run test:e2e`).
