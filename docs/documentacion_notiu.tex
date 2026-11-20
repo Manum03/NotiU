@@ -45,7 +45,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{\small\textbf{NotiU} --- Documentación General y Notas de Versión}
-\fancyhead[R]{\small Construcción de Software (\texttt{v0.5.0})}
+\fancyhead[R]{\small Construcción de Software (\texttt{v0.6.1})}
 \fancyfoot[C]{\small Página \thepage}
 \renewcommand{\headrulewidth}{0.4pt}
 
@@ -61,7 +61,7 @@
       \centering\vspace{10pt}
       {\Huge\bfseries\textcolor{white}{NOTIU}}\\[4pt]
       {\large\textcolor{naranjaClaro}{Asistente Académico y Centralizador de Notificaciones Universitarias}}\\[4pt]
-      {\small\textcolor{white}{Documentación Técnica, Sistema de Diseño UI/UX y Notas de Versión (\texttt{v0.1.0} -- \texttt{v0.5.0})}}
+      {\small\textcolor{white}{Documentación Técnica, Sistema de Diseño UI/UX y Notas de Versión (\texttt{v0.1.0} -- \texttt{v0.6.1})}}
       \vspace{10pt}
     }%
   }
@@ -77,7 +77,7 @@
     Asignatura & Construcción de Software \\
     Docente & Diego Andrés Baquero Tibocha \\
     Integrantes & Alejandro Rodríguez, Alejandro Martínez, David Muñoz, Yorman Sanabria y Jireth Suárez \\
-    Versión documental & \texttt{v0.5.0} --- 7 de noviembre de 2026 \\
+    Versión documental & \texttt{v0.6.1} --- 19 de noviembre de 2026 \\
     Repositorio GitHub & \url{https://github.com/Manum03/NotiU} \\
     Colección Postman & \href{https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace\string~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share\&creator=59230493}{NotiU-Workspace (Colección compartida de pruebas API)} \\
     \bottomrule
@@ -196,24 +196,34 @@ El diseño de producto organiza la experiencia móvil en seis flujos principales
 
 \subsection{Estructura General del Repositorio}
 \begin{itemize}[leftmargin=1.5em, itemsep=2pt]
-  \item \texttt{backend/}: API REST desarrollada con \textbf{Node.js ($\ge 18$)}, \textbf{TypeScript} y \textbf{Express 5}. Organizada por capas (\texttt{config}, \texttt{models}, \texttt{utils}, \texttt{middlewares}, \texttt{services}, \texttt{controllers} y \texttt{routes}).
-  \item \texttt{mobile/}: Estructura base de la aplicación cliente dividida en \texttt{assets}, \texttt{config}, \texttt{core}, \texttt{features} (\texttt{auth}, \texttt{notifications}, \texttt{profile}, \texttt{tasks}), \texttt{models}, \texttt{navigation}, \texttt{services} y \texttt{shared}.
+  \item \texttt{backend/}: API REST desarrollada con \textbf{Node.js ($\ge 22.12$)}, \textbf{TypeScript}, \textbf{Express 5} y \textbf{Firebase Admin} (Authentication + Cloud Firestore). Organizada por capas (\texttt{config}, \texttt{models}, \texttt{utils}, \texttt{middlewares}, \texttt{services}, \texttt{controllers}, \texttt{routes} y \texttt{jobs}), con pruebas de punta a punta en \texttt{tests/}.
+  \item \texttt{mobile/}: Aplicación \textbf{Expo SDK 58} (React Native 0.88, React 19, TypeScript) con navegación \textbf{React Navigation}, organizada por \emph{features} (\texttt{auth}, \texttt{home}, \texttt{tasks}, \texttt{subjects}, \texttt{integrations}, \texttt{notifications}, \texttt{profile}) y servicios en \texttt{services/} (\texttt{api}, \texttt{auth}, \texttt{notifications}, \texttt{storage}).
   \item \texttt{docs/}: Documentación formal del proyecto en \LaTeX\ y términos y condiciones de uso.
 \end{itemize}
 
 \subsection{Seguridad, Validación y Estado del Inventario de Endpoints}
 \begin{itemize}[leftmargin=1.5em, itemsep=2pt]
-  \item \textbf{Autenticación y roles:} Contraseñas protegidas con \texttt{scrypt} (\texttt{crypto} nativo de Node.js). Sesiones basadas en tokens aleatorios enviados mediante el encabezado \texttt{Authorization: Bearer <token>} con vigencia de 1 hora. Roles soportados: \texttt{student}, \texttt{teacher} y \texttt{admin}.
-  \item \textbf{Respuestas de error uniformes:} Formato estándar \texttt{\{"error": "...", "details": [...]\}} con códigos HTTP semánticos (\texttt{400}, \texttt{401}, \texttt{403}, \texttt{404}, \texttt{409} y \texttt{500}).
-  \item \textbf{Persistencia actual:} Almacenamiento en memoria (\emph{in-memory}) para agilidad de pruebas funcionales, con usuario administrador semilla (\texttt{admin@notiu.com} / \texttt{admin1234}).
-  \item \textbf{Cobertura del inventario API:} El diseño integral de la API contempla \textbf{43 endpoints} (base \texttt{http://localhost:3000}). Mientras en la entrega inicial del Taller 3 operaban 7 endpoints base, al corte de la versión \texttt{v0.5.0} ya se encuentran \textbf{22 endpoints implementados} en código y 21 proyectados para las integraciones de tareas, recordatorios, Pomodoro y conectores externos.
+  \item \textbf{Autenticación con Firebase:} La app registra e inicia sesión con el SDK de \textbf{Firebase Authentication} (correo y contraseña o Google). Cada petición envía el \emph{ID token} de Firebase en \texttt{Authorization: Bearer <ID token>} y el backend lo verifica con Firebase Admin; las contraseñas nunca pasan por la API. Roles: \texttt{student}, \texttt{teacher} y \texttt{admin} (este último se asigna con la variable \texttt{ADMIN\_EMAILS}).
+  \item \textbf{Respuestas de error uniformes:} Formato estándar \texttt{\{"error": "...", "details": [...]\}} con códigos HTTP semánticos (\texttt{400}, \texttt{401}, \texttt{403}, \texttt{404}, \texttt{409}, \texttt{429} y \texttt{500}).
+  \item \textbf{Persistencia en Cloud Firestore:} Todos los módulos viven en Firestore y solo se usan consultas de un campo (sin índices compuestos). Las reglas de seguridad bloquean el acceso directo desde los clientes: todo pasa por la API.
+  \item \textbf{Secretos cifrados:} El enlace iCal de Moodle y el \emph{refresh token} de Google se guardan cifrados con \textbf{AES-256-GCM}; las URL que escribe el usuario se validan para que no apunten a redes internas.
+  \item \textbf{Cobertura de la API:} \textbf{58 endpoints implementados} (base \texttt{http://localhost:3000}), verificados con la prueba de punta a punta \texttt{npm run test:e2e} (emulador de Firebase Auth y Firestore simulada en memoria).
 \end{itemize}
 
-\subsection{Catálogo de Endpoints Implementados (\texttt{v0.5.0})}
+\subsection{Arquitectura del Backend (\texttt{v0.6})}
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item \textbf{Capas:} \texttt{models} (\texttt{*.model.ts} y \texttt{*.dto.ts}) $\rightarrow$ \texttt{utils/*.validators.ts} $\rightarrow$ \texttt{services} $\rightarrow$ \texttt{controllers} $\rightarrow$ \texttt{routes}. Los errores se lanzan con \texttt{HttpError(status, mensaje, details)} y un middleware los convierte en la respuesta estándar.
+  \item \textbf{Colecciones de Firestore:} \texttt{users/\{uid\}} con las subcolecciones \texttt{tasks}, \texttt{subjects}, \texttt{grades} y \texttt{savedTips}, entre otras; \texttt{profiles/\{uid\}}; \texttt{notes}; \texttt{connections} (con \texttt{participants} para consultar con \texttt{array-contains}); \texttt{studyGroups} (con \texttt{memberIds}); el catálogo \texttt{tips}; además de integraciones, dispositivos y recordatorios.
+  \item \textbf{Conectores con patrón \emph{Strategy}:} Cada plataforma implementa la interfaz \texttt{TaskConnector} (\texttt{fetchTasks}) y se registra en \texttt{services/integrations/index.ts}. El motor de sincronización trata igual a Moodle (enlace iCal de \emph{Exportar calendario}) y a Google Classroom (OAuth de solo lectura); agregar Teams o Gmail solo requiere un conector nuevo.
+  \item \textbf{Sincronización y notificaciones:} Al detectar una tarea nueva o un cambio de fecha se guarda la notificación y se envía un \emph{push} con \textbf{Expo}. Los recordatorios se programan por defecto 24 h y 2 h antes de cada entrega y el estudiante puede elegir hasta cinco tiempos.
+  \item \textbf{Jobs periódicos:} Cada \texttt{SYNC\_INTERVAL\_MINUTES} (30 por defecto) se sincronizan todas las integraciones activas y cada minuto se envían los recordatorios vencidos, sin que dos corridas se superpongan.
+\end{itemize}
+
+\subsection{Catálogo de Endpoints Implementados (\texttt{v0.6.1})}
 
 {\small
 \renewcommand{\arraystretch}{1.2}
-\begin{longtable}{l l c p{6.4cm}}
+\begin{longtable}{l >{\raggedright\arraybackslash}p{5.6cm} c >{\raggedright\arraybackslash}p{5.4cm}}
   \toprule
   \textbf{Método} & \textbf{Ruta} & \textbf{Auth} & \textbf{Descripción Funcional} \\
   \midrule
@@ -225,41 +235,95 @@ El diseño de producto organiza la experiencia móvil en seis flujos principales
   \bottomrule
   \endfoot
 
-  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Salud del Servicio y Autenticación (\texttt{/api/health}, \texttt{/api/auth})}}} \\
-  \texttt{GET}   & \texttt{/api/health}          & No  & Comprueba disponibilidad del servidor (\texttt{status: ok}). \\
-  \texttt{POST}  & \texttt{/api/auth/register}   & No  & Registra usuario y retorna token de sesión (\texttt{201}). \\
-  \texttt{POST}  & \texttt{/api/auth/login}      & No  & Autentica credenciales y emite token Bearer por 1 h. \\
-  \texttt{POST}  & \texttt{/api/auth/logout}     & Sí  & Invalida el token de la sesión actual. \\
-  \texttt{GET}   & \texttt{/api/auth/me}         & Sí  & Devuelve los datos públicos del usuario autenticado. \\
-  \texttt{PATCH} & \texttt{/api/auth/password}   & Sí  & Actualiza contraseña y cierra las demás sesiones activas. \\
-  \texttt{GET}   & \texttt{/api/auth/users}      & Admin & Lista todos los usuarios registrados sin hash de clave. \\
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Salud y Autenticación (\texttt{/api/health}, \texttt{/api/auth})}}} \\
+  \texttt{GET} & \texttt{/api/health} & No & Comprueba la disponibilidad del servidor (\texttt{status: ok}). \\
+  \texttt{GET} & \texttt{/api/auth/me} & Sí & Devuelve el usuario autenticado (lo crea en Firestore la primera vez). \\
+  \texttt{GET} & \texttt{/api/auth/users} & Admin & Lista los usuarios registrados. \\
   \midrule
 
-  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Notificaciones Centralizadas (\texttt{/api/notifications})}}} \\
-  \texttt{GET}   & \texttt{/api/notifications}   & Sí  & Lista alertas paginadas (\texttt{page}, \texttt{limit}) filtrables por categoría (\texttt{URGENT}/\texttt{INFORMATIVE}) y lectura (\texttt{read}), de fuentes \texttt{MOODLE}, \texttt{CLASSROOM} o \texttt{SYSTEM}, incluyendo \texttt{unreadCount}. \\
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Notificaciones (\texttt{/api/notifications})}}} \\
+  \texttt{GET} & \texttt{/api/notifications} & Sí & Lista paginada con \texttt{unreadCount}, \texttt{kind}, \texttt{taskId} y filtros por categoría y lectura. \\
+  \texttt{PATCH} & \texttt{/api/notifications/:notificationId/read} & Sí & Marca una notificación como leída. \\
+  \texttt{POST} & \texttt{/api/notifications/read-all} & Sí & Marca todas como leídas. \\
+  \texttt{POST} & \texttt{/api/notifications/test} & Sí & Envía un \emph{push} de prueba a los dispositivos del usuario. \\
   \midrule
 
-  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Perfil Universitario y Ajustes (\texttt{/api/profile}, \texttt{/api/settings})}}} \\
-  \texttt{GET}   & \texttt{/api/profile}         & Sí  & Obtiene perfil académico (universidad, carrera, semestre, intereses y contadores de materias/conexiones). \\
-  \texttt{PATCH} & \texttt{/api/profile}         & Sí  & Actualiza parcialmente datos personales y académicos. \\
-  \texttt{GET}   & \texttt{/api/settings}        & Sí  & Consulta tema (\texttt{light}/\texttt{dark}/\texttt{system}), canales de alerta (\texttt{email}, \texttt{push}, \texttt{studyReminders}) y privacidad. \\
-  \texttt{PATCH} & \texttt{/api/settings}        & Sí  & Modifica parcialmente preferencias visuales, alertas o privacidad (\texttt{showProfileToPeers}). \\
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Perfil y Ajustes (\texttt{/api/profile}, \texttt{/api/settings})}}} \\
+  \texttt{GET} & \texttt{/api/profile} & Sí & Perfil académico con contadores de materias y conexiones. \\
+  \texttt{PATCH} & \texttt{/api/profile} & Sí & Actualiza parcialmente datos personales y académicos. \\
+  \texttt{GET} & \texttt{/api/settings} & Sí & Tema, alertas, tiempos de recordatorio y privacidad. \\
+  \texttt{PATCH} & \texttt{/api/settings} & Sí & Modifica parcialmente las preferencias (hasta 5 recordatorios). \\
   \midrule
 
   \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Materias y Horarios (\texttt{/api/subjects})}}} \\
-  \texttt{POST}   & \texttt{/api/subjects}                      & Sí & Registra una asignatura con créditos, semestre, docente, color y bloques de horario. \\
-  \texttt{GET}    & \texttt{/api/subjects}                      & Sí & Lista materias del estudiante con filtros por \texttt{semester}, \texttt{status} y \texttt{search}, e incluye promedio actual. \\
-  \texttt{GET}    & \texttt{/api/subjects/:subjectId}           & Sí & Consulta detalle de la materia y resumen ponderado de notas. \\
-  \texttt{PATCH}  & \texttt{/api/subjects/:subjectId}           & Sí & Actualización parcial de atributos y horario de la materia. \\
-  \texttt{GET}    & \texttt{/api/subjects/:subjectId/schedule}  & Sí & Devuelve las sesiones semanales de clase (día, hora inicio/fin y salón). \\
-  \texttt{DELETE} & \texttt{/api/subjects/:subjectId}           & Sí & Elimina la materia junto con sus calificaciones asociadas. \\
+  \texttt{POST} & \texttt{/api/subjects} & Sí & Crea una materia con créditos, semestre, docente, color y horario. \\
+  \texttt{GET} & \texttt{/api/subjects} & Sí & Lista materias con filtros y promedio actual. \\
+  \texttt{GET} & \texttt{/api/subjects/:subjectId} & Sí & Detalle de la materia y resumen ponderado de notas. \\
+  \texttt{PATCH} & \texttt{/api/subjects/:subjectId} & Sí & Actualización parcial de datos u horario. \\
+  \texttt{GET} & \texttt{/api/subjects/:subjectId/schedule} & Sí & Sesiones semanales de clase. \\
+  \texttt{DELETE} & \texttt{/api/subjects/:subjectId} & Sí & Elimina la materia y sus calificaciones (en cascada). \\
   \midrule
 
-  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Calificaciones y Proyección por Cortes (\texttt{/api/grades}, \texttt{/api/subjects/:id/grades})}}} \\
-  \texttt{POST} & \texttt{/api/subjects/:subjectId/grades}   & Sí & Registra una calificación (\texttt{0.0--5.0}), porcentaje (\texttt{1--100}) y corte (\texttt{1--4}). \\
-  \texttt{GET}  & \texttt{/api/subjects/:subjectId/grades}   & Sí & Lista las notas de una materia, peso evaluado y promedio ponderado. \\
-  \texttt{GET}  & \texttt{/api/subjects/:subjectId/progress} & Sí & Calcula porcentaje evaluado/restante, nota requerida para aprobar en \texttt{3.0} (\texttt{neededToPass}) y estado (\texttt{en\_curso}, \texttt{aprobada}, \texttt{reprobada}, \texttt{aprobacion\_asegurada}, \texttt{imposible\_aprobar}). \\
-  \texttt{GET}  & \texttt{/api/grades}                       & Sí & Consolidado general de notas filtrable por \texttt{semester} y \texttt{corte}. \\
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Calificaciones (\texttt{/api/grades}, \texttt{/api/subjects/:id/grades})}}} \\
+  \texttt{POST} & \texttt{/api/subjects/:subjectId/grades} & Sí & Registra una nota (\texttt{0.0--5.0}), porcentaje y corte. \\
+  \texttt{GET} & \texttt{/api/subjects/:subjectId/grades} & Sí & Notas de una materia y promedio ponderado. \\
+  \texttt{GET} & \texttt{/api/subjects/:subjectId/progress} & Sí & Porcentaje evaluado y nota necesaria para aprobar. \\
+  \texttt{GET} & \texttt{/api/grades} & Sí & Consolidado de notas filtrable por semestre y corte. \\
+  \texttt{GET} & \texttt{/api/grades/average} & Sí & Promedio general ponderado por créditos (PGA). \\
+  \texttt{PATCH} & \texttt{/api/grades/:gradeId} & Sí & Edita una calificación propia. \\
+  \texttt{DELETE} & \texttt{/api/grades/:gradeId} & Sí & Elimina una calificación propia. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Apuntes (\texttt{/api/notes})}}} \\
+  \texttt{GET} & \texttt{/api/notes} & Sí & Lista paginada con filtros; los fijados primero. \\
+  \texttt{POST} & \texttt{/api/notes} & Sí & Crea un apunte con materia y etiquetas opcionales. \\
+  \texttt{PATCH} & \texttt{/api/notes/:noteId} & Sí & Edita un apunte (solo el autor; \texttt{403} si es ajeno). \\
+  \texttt{DELETE} & \texttt{/api/notes/:noteId} & Sí & Elimina un apunte propio. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Conexiones entre Estudiantes (\texttt{/api/peers}, \texttt{/api/connections})}}} \\
+  \texttt{GET} & \texttt{/api/peers} & Sí & Descubre compañeros con materias en común (respeta la privacidad). \\
+  \texttt{GET} & \texttt{/api/connections} & Sí & Conexiones aceptadas y solicitudes pendientes. \\
+  \texttt{POST} & \texttt{/api/connections/requests} & Sí & Envía una solicitud (\texttt{409} si ya existe). \\
+  \texttt{PATCH} & \texttt{/api/connections/requests/:requestId} & Sí & Acepta o rechaza una solicitud recibida. \\
+  \texttt{DELETE} & \texttt{/api/connections/:connectionId} & Sí & Elimina una conexión o cancela una solicitud. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Grupos de Estudio (\texttt{/api/study-groups})}}} \\
+  \texttt{GET} & \texttt{/api/study-groups} & Sí & Lista grupos con cupos (\texttt{onlyMine} para los propios). \\
+  \texttt{GET} & \texttt{/api/study-groups/:groupId} & Sí & Detalle con integrantes y roles. \\
+  \texttt{POST} & \texttt{/api/study-groups} & Sí & Crea un grupo; el creador queda como \texttt{admin}. \\
+  \texttt{POST} & \texttt{/api/study-groups/:groupId/join} & Sí & Se une si hay cupo. \\
+  \texttt{DELETE} & \texttt{/api/study-groups/:groupId/leave} & Sí & Sale del grupo (el rol de admin pasa al más antiguo). \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Tips de Estudio (\texttt{/api/tips})}}} \\
+  \texttt{GET} & \texttt{/api/tips} & Sí & Catálogo con filtros y bandera \texttt{isSaved}. \\
+  \texttt{GET} & \texttt{/api/tips/tags} & Sí & Etiquetas con el conteo de tips. \\
+  \texttt{GET} & \texttt{/api/tips/:tipId} & Sí & Contenido completo y recursos. \\
+  \texttt{POST} & \texttt{/api/tips/:tipId/save} & Sí & Guarda un tip en favoritos. \\
+  \texttt{DELETE} & \texttt{/api/tips/:tipId/save} & Sí & Quita un tip de favoritos. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Tareas (\texttt{/api/tasks})}}} \\
+  \texttt{GET} & \texttt{/api/tasks} & Sí & Tareas manuales e importadas con filtros, ordenadas por entrega. \\
+  \texttt{POST} & \texttt{/api/tasks} & Sí & Crea una tarea con prioridad, fecha, hora y subtareas; programa recordatorios. \\
+  \texttt{GET} & \texttt{/api/tasks/:taskId} & Sí & Detalle de una tarea. \\
+  \texttt{PATCH} & \texttt{/api/tasks/:taskId} & Sí & Actualiza la tarea (las importadas solo cambian estado, prioridad, materia y subtareas). \\
+  \texttt{PATCH} & \texttt{/api/tasks/:taskId/complete} & Sí & Marca la tarea como realizada. \\
+  \texttt{PATCH} & \texttt{/api/tasks/:taskId/archive} & Sí & Archiva la tarea. \\
+  \texttt{PATCH} & \texttt{/api/tasks/:taskId/restore} & Sí & Restaura una tarea archivada. \\
+  \texttt{DELETE} & \texttt{/api/tasks/:taskId} & Sí & Elimina una tarea creada en NotiU. \\
+  \midrule
+
+  \multicolumn{4}{l}{\textbf{\textcolor{carmesiOscuroA}{Integraciones y Dispositivos (\texttt{/api/integrations}, \texttt{/api/devices})}}} \\
+  \texttt{GET} & \texttt{/api/integrations} & Sí & Estado de Moodle y Classroom. \\
+  \texttt{PUT} & \texttt{/api/integrations/moodle} & Sí & Conecta Moodle con el enlace iCal y sincroniza. \\
+  \texttt{POST} & \texttt{/api/integrations/classroom} & Sí & Conecta Classroom con el \texttt{serverAuthCode} de Google. \\
+  \texttt{POST} & \texttt{/api/integrations/:provider/sync} & Sí & Sincroniza ahora (máximo una vez por minuto, \texttt{429}). \\
+  \texttt{DELETE} & \texttt{/api/integrations/:provider} & Sí & Desconecta y borra las tareas importadas. \\
+  \texttt{POST} & \texttt{/api/devices} & Sí & Registra el Expo push token del celular. \\
+  \texttt{DELETE} & \texttt{/api/devices} & Sí & Elimina el token al cerrar sesión. \\
 \end{longtable}
 }
 
@@ -267,6 +331,21 @@ El diseño de producto organiza la experiencia móvil en seis flujos principales
 \section{Notas de Versión (\emph{Release Notes})}
 
 El historial de versiones refleja la evolución real del repositorio \texttt{Manum03/NotiU} desde su fundación hasta el corte actual:
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.6.1} --- App Móvil con Firebase Auth}
+\textbf{Fecha:} 19 de noviembre de 2026
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item App móvil conectada a Firebase Auth (registro, login persistente, recuperar contraseña y cerrar sesión), endpoints para archivar y restaurar tareas, pantalla para conectar Moodle desde el Inicio y recarga del Inicio al volver a la pantalla.
+\end{itemize}
+
+\subsection*{\textcolor{carmesiVivido}{Versión 0.6.0} --- Firebase, Tareas Unificadas e Integraciones con Moodle y Classroom}
+\textbf{Fecha:} 19 de noviembre de 2026
+\begin{itemize}[leftmargin=1.5em, itemsep=2pt]
+  \item Autenticación con \textbf{Firebase Auth} (ID tokens) y persistencia en \textbf{Firestore} para usuarios, ajustes y notificaciones.
+  \item Módulo de \textbf{tareas} unificado (\texttt{/api/tasks}: las creadas en NotiU y las importadas, con prioridad, subtareas y recordatorios).
+  \item \textbf{Integraciones} con Moodle por iCal y Google Classroom por OAuth (\texttt{/api/integrations}) y \textbf{dispositivos} para \emph{push} con Expo (\texttt{/api/devices}).
+  \item Motor de sincronización con detección de tareas nuevas y cambios de fecha, recordatorios configurables, jobs periódicos, cifrado de secretos y pruebas de punta a punta (\texttt{npm run test:e2e}).
+\end{itemize}
 
 \subsection*{\textcolor{carmesiVivido}{Versión 0.5.0} --- Calificaciones, Proyección Académica y Documentación Integral}
 \textbf{Fecha:} 5 -- 7 de noviembre de 2026 \textbar\ \textbf{Referencias:} \texttt{862310c}, \texttt{4358157}, \texttt{2fdeb3c}, \texttt{9ae1fb3} y rama \texttt{AlejandroR}
@@ -305,11 +384,11 @@ El historial de versiones refleja la evolución real del repositorio \texttt{Man
   \item \textbf{Backend Base (Taller 3):} Servidor Express 5 + TypeScript con hashing \texttt{scrypt}, middlewares \texttt{requireAuth}/\texttt{requireRole}, manejo centralizado de errores, endpoint \texttt{GET /api/health}, los 6 endpoints de \texttt{/api/auth} y guía inicial de pruebas en Postman.
 \end{itemize}
 
-\subsection*{Próximos Hitos Planeados (\texttt{v0.6.0+})}
+\subsection*{Próximos Hitos Planeados (\texttt{v0.7.0+})}
 \begin{itemize}[leftmargin=1.5em, itemsep=2pt]
-  \item Integración de base de datos persistente para reemplazar los arreglos en memoria.
-  \item Implementación de los endpoints restantes del inventario general (CRUD de apuntes/recordatorios, sesiones Pomodoro, marcado de lectura de notificaciones y conectores con Classroom/Moodle/Teams).
-  \item Construcción de las vistas móviles en \texttt{mobile/} siguiendo la hoja de estilos carmesí y las tipografías \emph{Bebas Neue} y \emph{Playfair Display}.
+  \item Conectores adicionales (Microsoft Teams y correo) sobre la misma interfaz \texttt{TaskConnector}.
+  \item Recibos de entrega de Expo para limpiar los dispositivos que ya no reciben \emph{push}, resumen diario por correo y límite de peticiones en las integraciones.
+  \item Sesiones Pomodoro y estadísticas de estudio en la app móvil.
 \end{itemize}
 
 \end{document}

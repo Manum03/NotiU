@@ -140,6 +140,9 @@ Base `http://localhost:3000`.
 | **Notas** | `GET` | `/api/subjects/:subjectId/grades` | Sí | Lista las notas de una materia y su promedio ponderado |
 | **Notas** | `GET` | `/api/subjects/:subjectId/progress` | Sí | Proyecta estado de aprobación y nota necesaria en lo restante |
 | **Notas** | `GET` | `/api/grades` | Sí | Consolidado general de notas filtrable por `semester` y `corte` |
+| **Notas** | `GET` | `/api/grades/average` | Sí | Promedio general ponderado por créditos (PGA), filtrable por `semester` |
+| **Notas** | `PATCH` | `/api/grades/:gradeId` | Sí | Edita una calificación propia (la suma de porcentajes no puede pasar de 100%) |
+| **Notas** | `DELETE` | `/api/grades/:gradeId` | Sí | Elimina una calificación propia y devuelve el resumen actualizado |
 | **Apuntes** | `GET` | `/api/notes` | Sí | Lista apuntes paginados con filtros (`subjectId`, `tag`, `search`); fijados primero |
 | **Apuntes** | `POST` | `/api/notes` | Sí | Crea un apunte (título 1–150) con materia y etiquetas opcionales (`201`) |
 | **Apuntes** | `PATCH` | `/api/notes/:noteId` | Sí | Edita título, contenido, materia, etiquetas o fijado; solo el autor (`403`) |
