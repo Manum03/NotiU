@@ -2,12 +2,18 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Lucide } from '@react-native-vector-icons/lucide';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+import type { RootStackParamList } from '../../../navigation/AppNavigator';
 
 type Props = {
-  activeScreen: 'Home' | 'Subjects' | 'Tasks';
+  activeScreen: 'Home' | 'Subjects' | 'Tasks' | 'Profile';
   onHome: () => void;
   onSubjects: () => void;
   onTasks?: () => void;
+  // Si no se pasa, el botón de perfil abre la pantalla Perfil
+  onProfile?: () => void;
 };
 
 const COLORS = {
@@ -22,7 +28,10 @@ export default function BottomNavigation({
   onHome,
   onSubjects,
   onTasks,
+  onProfile,
 }: Props) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+
   return (
     <View style={styles.bottomBar}>
       <Pressable style={styles.navItem}>
@@ -71,8 +80,19 @@ export default function BottomNavigation({
         />
       </Pressable>
 
-      <Pressable style={styles.navItem}>
-        <Lucide name="user-round" size={24} color={COLORS.text} />
+      <Pressable
+        style={[
+          styles.navItem,
+          activeScreen === 'Profile' && styles.activeNavItem,
+        ]}
+        onPress={onProfile ?? (() => navigation.navigate('Profile'))}
+        accessibilityLabel="Mi perfil"
+      >
+        <Lucide
+          name="user-round"
+          size={24}
+          color={activeScreen === 'Profile' ? COLORS.white : COLORS.text}
+        />
       </Pressable>
     </View>
   );

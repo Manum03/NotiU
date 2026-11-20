@@ -19,6 +19,20 @@ export const colors = {
   success: "#4CAF50",
   warning: "#E6A23C",
   danger: "#D94A55",
+
+  // Tarjetas y textos secundarios (los mismos del Inicio)
+  border: "#572033",
+  muted: "#C9B8B1",
+  soft: "#80666C",
+};
+
+// Colores de urgencia de las entregas (README > Identidad visual)
+export const urgencyColors = {
+  alta: "#EE6520", // vence en menos de 24 h
+  media: "#EEE620", // vence en menos de 72 h
+  baja: "#20EEDB", // falta más tiempo
+  sinFecha: "#BF20EE",
+  vencida: "#D94A55", // ya pasó la fecha
 };
 
 export const spacing = {

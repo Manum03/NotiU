@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Lucide } from '@react-native-vector-icons/lucide';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
 
 import {
   ActivityIndicator,
@@ -19,7 +20,7 @@ import {
 } from 'react-native';
 
 import type { RootStackParamList } from '../../../navigation/AppNavigator';
-import { apiRequest } from '../../../services/api/api';
+import { apiRequest, isApiError } from '../../../services/api/api';
 import { FONTS } from '../../../core/theme/fonts';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ConnectMoodle'>;
@@ -97,6 +98,16 @@ export default function ConnectMoodleScreen({ navigation }: Props) {
     }, [loadStatus])
   );
 
+  // Pega el enlace copiado en Moodle (botón "Pegar")
+  const pasteFromClipboard = async () => {
+    const text = (await Clipboard.getStringAsync()).trim();
+    if (!text) {
+      Alert.alert('Portapapeles vacío', 'Copia primero el enlace del calendario en Moodle.');
+      return;
+    }
+    setIcalUrl(text);
+  };
+
   // Envía el enlace al backend: lo valida descargándolo y sincroniza de una vez
   const connect = async () => {
     const value = icalUrl.trim();
@@ -123,9 +134,11 @@ export default function ConnectMoodleScreen({ navigation }: Props) {
 
       Alert.alert(
         '¡Moodle conectado!',
-        result.sync.total > 0
-          ? `Importamos ${result.sync.total} actividad${result.sync.total === 1 ? '' : 'es'}. Te avisaremos antes de cada entrega.`
-          : 'No encontramos entregas próximas. Te avisaremos cuando aparezca una nueva.',
+        result.sync.created > 0
+          ? `Importamos ${result.sync.created} tarea${result.sync.created === 1 ? '' : 's'}. Te avisaremos antes de cada entrega.`
+          : result.sync.total > 0
+            ? 'Tus tareas de Moodle ya estaban al día.'
+            : 'No encontramos entregas próximas. Te avisaremos cuando aparezca una nueva.',
         [{ text: 'Ver mis tareas', onPress: () => navigation.goBack() }]
       );
     } catch (err) {
@@ -150,6 +163,10 @@ export default function ConnectMoodleScreen({ navigation }: Props) {
           : 'Todo está al día.'
       );
     } catch (err) {
+      if (isApiError(err, 429)) {
+        Alert.alert('Espera un minuto', 'Acabas de sincronizar. Espera un minuto antes de intentarlo de nuevo.');
+        return;
+      }
       Alert.alert(
         'No se pudo sincronizar',
         err instanceof Error ? err.message : 'Inténtalo de nuevo.'
@@ -274,7 +291,19 @@ export default function ConnectMoodleScreen({ navigation }: Props) {
                   ))}
                 </View>
 
-                <Text style={styles.label}>Enlace del calendario</Text>
+                <View style={styles.labelRow}>
+                  <Text style={styles.label}>Enlace del calendario</Text>
+                  <Pressable
+                    style={styles.pasteButton}
+                    onPress={pasteFromClipboard}
+                    disabled={working}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pegar el enlace del portapapeles"
+                  >
+                    <Lucide name="clipboard-paste" size={15} color={COLORS.text} />
+                    <Text style={styles.secondaryText}>Pegar</Text>
+                  </Pressable>
+                </View>
                 <TextInput
                   placeholder="https://moodle.tu-universidad.edu.co/calendar/export_execute.php?..."
                   placeholderTextColor={COLORS.soft}
@@ -288,7 +317,7 @@ export default function ConnectMoodleScreen({ navigation }: Props) {
                   editable={!working}
                 />
                 <Text style={styles.hint}>
-                  Mantén presionado el campo para pegar. El enlace es privado: lo guardamos cifrado y nunca pedimos tu contraseña.
+                  Acepta enlaces https:// o webcal://. El enlace es privado: lo guardamos cifrado y nunca pedimos tu contraseña.
                 </Text>
 
                 <Pressable
@@ -425,6 +454,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text,
     marginBottom: 8,
+  },
+
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  pasteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.darkWine,
   },
 
   input: {

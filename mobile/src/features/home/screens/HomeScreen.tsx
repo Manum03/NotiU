@@ -3,7 +3,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../../navigation/AppNavigator';
 //pantalla inicial
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // iconos
 import { Lucide } from '@react-native-vector-icons/lucide';
@@ -29,6 +29,8 @@ import {
 
 import { apiRequest } from '../../../services/api/api';
 import { getSession } from '../../../services/storage/authStorage';
+import type { TaskSource } from '../../../models/task';
+import DeliveriesSection from '../components/DeliveriesSection';
 
 
 // estados de una actividad
@@ -54,6 +56,12 @@ type Task = {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  // Campos que agrega el backend (tareas importadas de Moodle/Classroom)
+  source: TaskSource;
+  courseName: string | null;
+  url: string | null;
+  dueAt: string | null;
+  isOverdue: boolean;
 };
 
 type TasksResponse = {
@@ -80,6 +88,17 @@ const MONTHS = [
 const WEEK_DAYS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 
 // paleta de colores
+// Estado de una plataforma conectada (GET /integrations)
+type Integration = {
+  provider: 'moodle' | 'classroom';
+  connected: boolean;
+  status: 'active' | 'error' | 'needs_reauth' | null;
+};
+
+type IntegrationsResponse = {
+  data: Integration[];
+};
+
 const COLORS = {
   background: '#10060A',
   card: '#260A13',
@@ -172,6 +191,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   // acti y datos de usuario
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [user, setUser] = useState<UserInfo | null>(null);
 
   // estados para controlar carga/errores
@@ -228,6 +248,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
       // actualiza las acti y la info del usuario
       setTasks(response.tasks ?? []);
+
+      // estado de las plataformas conectadas (si falla, no bloquea el Home)
+      apiRequest<IntegrationsResponse>('/integrations', { method: 'GET', token: session.token })
+        .then((result) => setIntegrations(result.data ?? []))
+        .catch(() => setIntegrations([]));
       setUser((session.user ?? null) as UserInfo | null);
     } catch (err) {
       // muestra msj si ocurre un problema con la soli
@@ -242,10 +267,26 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     }
   }, []);
 
-  // carga actis cuando se abre la pantalla
+  // carga actis cuando se abre la pantalla y cada vez que se vuelve a ella
+  // (por ejemplo, después de crear una tarea o conectar Moodle)
+  const loadedOnce = useRef(false);
+
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadTasks(!loadedOnce.current);
+      loadedOnce.current = true;
+    });
+    return unsubscribe;
+  }, [navigation, loadTasks]);
+
+  // texto de estado bajo cada plataforma
+  const integrationLabel = (provider?: Integration['provider']): string | null => {
+    const integration = integrations.find((item) => item.provider === provider);
+    if (!integration?.connected) return null;
+    if (integration.status === 'needs_reauth') return 'Reconectar';
+    if (integration.status === 'error') return 'Con errores';
+    return 'Conectado';
+  };
 
   // refresca la pantalla deslizando hacia abajo
   const onRefresh = useCallback(() => {
@@ -833,6 +874,13 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
 
 
+          {/* entregas pendientes (también las importadas de Moodle/Classroom) agrupadas por fecha */}
+          <DeliveriesSection
+            tasks={tasks}
+            onOpenTask={(taskId) => navigation.navigate('TaskDetail', { taskId })}
+          />
+
+
           <View style={styles.planningCard}>
             <View style={styles.planningHeader}>
               <View style={styles.planningHeading}>
@@ -1116,19 +1164,29 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
               {[
                 { name: 'Correo', icon: 'mail' as const },
-                { name: 'Classroom', icon: 'graduation-cap' as const },
-                { name: 'Universidad / Plataforma', icon: 'school' as const },
+                { name: 'Classroom', icon: 'graduation-cap' as const, provider: 'classroom' as const },
+                { name: 'Universidad / Plataforma', icon: 'school' as const, provider: 'moodle' as const },
                 { name: 'Teams', icon: 'users' as const },
               ].map(platform => (
                 <Pressable
                   key={platform.name}
                   style={styles.connectionItem}
-                  onPress={() =>
+                  onPress={() => {
+                    // Moodle se conecta con el enlace del calendario
+                    if (platform.provider === 'moodle') {
+                      navigation.navigate('ConnectMoodle');
+                      return;
+                    }
+                    // Classroom se conecta con Google desde la pantalla de Conexiones
+                    if (platform.provider === 'classroom') {
+                      navigation.navigate('Integrations');
+                      return;
+                    }
                     Alert.alert(
                       platform.name,
                       'La conexión con esta plataforma estará disponible próximamente.'
-                    )
-                  }
+                    );
+                  }}
                 >
                   <View style={styles.connectionIcon}>
                     <Lucide
@@ -1138,20 +1196,22 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
                     />
                   </View>
 
-                  <Text style={styles.connectionText}>
-                    {platform.name}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.connectionText}>
+                      {platform.name}
+                    </Text>
+                    {integrationLabel(platform.provider) && (
+                      <Text style={styles.connectionStatus}>
+                        {integrationLabel(platform.provider)}
+                      </Text>
+                    )}
+                  </View>
                 </Pressable>
               ))}
 
               <Pressable
                 style={[styles.connectionItem, styles.addConnectionItem]}
-                onPress={() =>
-                  Alert.alert(
-                    'Añadir conexión',
-                    'Aquí podrás agregar nuevas plataformas próximamente.'
-                  )
-                }
+                onPress={() => navigation.navigate('Integrations')}
               >
                 <View style={styles.addConnectionIcon}>
                   <Lucide name="plus" size={23} color={COLORS.text} />
@@ -2196,6 +2256,13 @@ const styles = StyleSheet.create({
     fontFamily: 'PlayfairDisplay_400Regular',
     fontSize: 13,
     color: COLORS.text,
+  },
+
+  connectionStatus: {
+    fontFamily: 'PlayfairDisplay_400Regular',
+    fontSize: 11,
+    color: COLORS.brightWine,
+    marginTop: 2,
   },
 
   addConnectionItem: {

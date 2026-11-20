@@ -18,6 +18,23 @@ type ApiRequestOptions = Omit<RequestInit, 'headers'> & {
   token?: string;
 };
 
+// Error de la API con el código HTTP (p. ej. 429 = "espera un minuto").
+// Es un Error normal: las pantallas que solo leen `message` siguen funcionando igual.
+export class ApiError extends Error {
+  readonly status: number;
+  readonly details: string[];
+
+  constructor(message: string, status: number, details: string[] = []) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.details = details;
+  }
+}
+
+export const isApiError = (error: unknown, status?: number): error is ApiError =>
+  error instanceof ApiError && (status === undefined || error.status === status);
+
 // Formato de error del backend: { error, details? }
 const buildErrorMessage = (data: any): string => {
   const base = data?.error || data?.message || 'Error al conectar con el servidor';
@@ -74,7 +91,11 @@ export async function apiRequest<T>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(buildErrorMessage(data));
+    throw new ApiError(
+      buildErrorMessage(data),
+      response.status,
+      Array.isArray(data?.details) ? data.details : []
+    );
   }
 
   return data as T;

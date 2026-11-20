@@ -126,8 +126,8 @@ export function openFromNotification(response: Notifications.NotificationRespons
   if (!navigationRef.isReady()) return;
 
   if (data.taskId) {
-    navigationRef.navigate('AddTask', { taskId: data.taskId });
+    navigationRef.navigate('TaskDetail', { taskId: data.taskId });
   } else {
-    navigationRef.navigate('Tasks');
+    navigationRef.navigate('Notifications');
   }
 }

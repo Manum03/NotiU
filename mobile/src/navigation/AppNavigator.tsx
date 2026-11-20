@@ -14,6 +14,10 @@ import AddSubjectScreen from '../features/subjects/screens/AddSubjectScreen';
 import AddTaskScreen from '../features/tasks/screens/AddTaskScreen';
 import RemindersScreen from '../features/tasks/screens/RemindersScreen';
 import ConnectMoodleScreen from '../features/integrations/screens/ConnectMoodleScreen';
+import IntegrationsScreen from '../features/integrations/screens/IntegrationsScreen';
+import TaskDetailScreen from '../features/tasks/screens/TaskDetailScreen';
+import NotificationsScreen from '../features/notifications/screens/NotificationsScreen';
+import ProfileScreen from '../features/profile/screens/ProfileScreen';
 import type { Subject } from '../features/subjects/types';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { navigationRef } from './navigationRef';
@@ -32,6 +36,10 @@ export type RootStackParamList = {
   SubjectDetail: { subject: Subject };
   AddSubject: { subjectId?: string } | undefined;
   ConnectMoodle: undefined;
+  Integrations: undefined;
+  TaskDetail: { taskId: string };
+  Notifications: undefined;
+  Profile: undefined;
   AddTask: {
   type?: 'tarea' | 'recordatorio' | 'nota' | 'checklist';
   taskId?: string;
@@ -132,6 +140,10 @@ export default function AppNavigator() {
         <Stack.Screen name="AddTask" component={AddTaskScreen} />
         <Stack.Screen name="Tasks" component={RemindersScreen} />
         <Stack.Screen name="ConnectMoodle" component={ConnectMoodleScreen} />
+        <Stack.Screen name="Integrations" component={IntegrationsScreen} />
+        <Stack.Screen name="TaskDetail" component={TaskDetailScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

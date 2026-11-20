@@ -20,8 +20,9 @@ type GoogleSignInModule = typeof import('@react-native-google-signin/google-sign
 
 // Carga el módulo y lo configura. `classroom: true` pide además los permisos de
 // Classroom y un serverAuthCode (offlineAccess) para que el backend obtenga el refresh token.
+// `forceCode` (solo Android) obliga a Google a entregar un código nuevo.
 export async function loadGoogleSignIn(
-  { classroom = false }: { classroom?: boolean } = {}
+  { classroom = false, forceCode = false }: { classroom?: boolean; forceCode?: boolean } = {}
 ): Promise<GoogleSignInModule> {
   if (!googleSignInAvailable()) {
     throw new Error(
@@ -37,7 +38,12 @@ export async function loadGoogleSignIn(
   const google = await import('@react-native-google-signin/google-signin');
   google.GoogleSignin.configure(
     classroom
-      ? { webClientId: WEB_CLIENT_ID, offlineAccess: true, scopes: CLASSROOM_SCOPES }
+      ? {
+          webClientId: WEB_CLIENT_ID,
+          offlineAccess: true,
+          scopes: CLASSROOM_SCOPES,
+          forceCodeForRefreshToken: forceCode,
+        }
       : { webClientId: WEB_CLIENT_ID }
   );
   return google;
