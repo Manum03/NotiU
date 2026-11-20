@@ -82,7 +82,7 @@ const S = { token:store.get("token"), base:store.get("base") || (location.protoc
             tab:"inicio", subjectId:null, status:"", search:"", cat:"", log:[],
             subjects:[], noteSearch:"", noteTag:"", noteSubject:"", editNote:null,
             space:"tips", tipId:null, tipTag:"", tipSaved:false, tipSearch:"",
-            groupId:null, groupMine:false, groupSearch:"", peerSearch:"", peerCareer:"" };
+            groupId:null, groupMine:false, groupSearch:"", peerSearch:"", peerCareer:"", taskStatus:"pendiente" };
 const ST = { cursando:["EN CURSO", "on"], pendiente:["PENDIENTE", "pen"], aprobada:["FINALIZADA", "fin"] };
 const head = (a, b, sub) => `<h1 class="pt">${a} <span>${b}</span></h1><p class="sub" style="margin-top:6px">${sub}</p>`;
 
@@ -94,11 +94,45 @@ function toast(msg, bad) {
 const why = (r) => (r.data?.details?.length ? r.data.details.join(". ") : r.data?.error || "Error " + r.status);
 const fail = (r) => { if (r.status !== 0) toast(why(r), true); };
 
+/* ---------- Firebase Auth (SDK web desde el CDN) ---------- */
+// Misma versión que usa la app móvil (mobile/package.json)
+const FB_VER = "12.19.0";
+const FB = { auth:null, mod:null };
+const fbCfg = () => ({ apiKey:store.get("fbKey"), projectId:store.get("fbProject"), emulator:store.get("fbEmu") });
+async function fbInit() {
+  if (FB.auth) return FB.auth;
+  const c = fbCfg();
+  if (!c.apiKey || !c.projectId) throw { message:"Primero configura Firebase (Web API Key e ID del proyecto) en la pantalla de inicio de sesión." };
+  const appMod = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-app.js`);
+  FB.mod = await import(`https://www.gstatic.com/firebasejs/${FB_VER}/firebase-auth.js`);
+  const fbApp = appMod.initializeApp({ apiKey:c.apiKey, projectId:c.projectId, authDomain:`${c.projectId}.firebaseapp.com` });
+  FB.auth = FB.mod.getAuth(fbApp);
+  if (c.emulator) FB.mod.connectAuthEmulator(FB.auth, c.emulator, { disableWarnings:true });
+  await FB.auth.authStateReady();   // espera a que Firebase recupere la sesión guardada
+  return FB.auth;
+}
+// Mensajes en español para los códigos de error de Firebase
+const FB_ERR = {
+  "auth/invalid-credential":"Correo o contraseña incorrectos.", "auth/wrong-password":"La contraseña es incorrecta.",
+  "auth/email-already-in-use":"Ya existe una cuenta con ese correo.", "auth/weak-password":"La contraseña debe tener al menos 6 caracteres.",
+  "auth/invalid-email":"El correo no es válido.", "auth/network-request-failed":"No hay conexión con Firebase.",
+  "auth/too-many-requests":"Demasiados intentos. Espera un momento.", "auth/invalid-api-key":"La Web API Key de Firebase no es válida.",
+  "auth/requires-recent-login":"Vuelve a iniciar sesión para cambiar la contraseña.",
+};
+const fbFail = (e) => toast(FB_ERR[e?.code] || e?.message || "Error de Firebase", true);
+// ID token para el backend: el de Firebase (se renueva solo) o el que se pegó a mano
+async function idToken(force = false) {
+  if (FB.auth?.currentUser) return FB.auth.currentUser.getIdToken(force);
+  return S.token;
+}
+const loggedIn = () => Boolean(FB.auth?.currentUser || S.token);
+
 /* ---------- Única función que habla con el backend ---------- */
-async function api(method, path, body, auth = true) {
+async function api(method, path, body, auth = true, retried = false) {
   const headers = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (auth && S.token) headers.Authorization = "Bearer " + S.token;
+  const tok = auth ? await idToken(retried).catch(() => "") : "";
+  if (tok) headers.Authorization = "Bearer " + tok;
   let res, data = null;
   try {
     res = await fetch(S.base.replace(/\/$/, "") + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -108,9 +142,10 @@ async function api(method, path, body, auth = true) {
     return { ok:false, status:0, data:null };
   }
   addLog(res.status, method, path);
-  // Solo es "sesión vencida" si el error habla del token (una contraseña incorrecta también da 401)
-  if (res.status === 401 && auth && S.token && /token|sesi[oó]n|authorization/i.test(data?.error || "")) {
-    endSession(); toast("Tu sesión terminó. Inicia sesión de nuevo.", true);
+  // 401 con token: con Firebase se fuerza la renovación y se reintenta UNA vez; si no, la sesión terminó
+  if (res.status === 401 && tok) {
+    if (FB.auth?.currentUser && !retried) return api(method, path, body, auth, true);
+    await endSession(); toast("Tu sesión terminó. Inicia sesión de nuevo.", true);
   }
   return { ok:res.ok, status:res.status, data };
 }
@@ -118,16 +153,21 @@ function addLog(status, method, path) {
   S.log.unshift(`${status}  ${method} ${path}`); S.log.length = Math.min(S.log.length, 25);
   const el = $("#log"); if (el) el.textContent = S.log.join("\n");
 }
-function endSession() { S.token = ""; S.user = null; S.screen = "welcome"; store.set("token", ""); render(); }
-function start(d) { S.token = d.token; S.user = d.user; store.set("token", d.token); S.tab = "inicio"; S.subjectId = null; render(); }
+async function endSession() {
+  S.token = ""; S.user = null; S.screen = "welcome"; store.set("token", "");
+  if (FB.auth?.currentUser) await FB.mod.signOut(FB.auth).catch(() => {});
+  render();
+}
+function start() { S.user = null; S.tab = "inicio"; S.subjectId = null; render(); }
 
 /* ---------- Navegación ---------- */
 async function render() {
-  if (!S.token) { $("#tabs").innerHTML = ""; return { welcome:viewWelcome, login:viewLogin, register:viewRegister }[S.screen](); }
+  if (!loggedIn()) { $("#tabs").innerHTML = ""; return { welcome:viewWelcome, login:viewLogin, register:viewRegister }[S.screen](); }
   if (!S.user) { const r = await api("GET", "/api/auth/me"); if (!r.ok) return; S.user = r.data; }
-  $("#tabs").innerHTML = [["espacio", "ESPACIO"], ["notas", "NOTAS"], ["inicio", "INICIO"], ["materias", "MATERIAS"], ["perfil", "PERFIL"]]
+  $("#tabs").innerHTML = [["espacio", "ESPACIO"], ["notas", "NOTAS"], ["inicio", "INICIO"], ["tareas", "TAREAS"], ["materias", "MATERIAS"], ["perfil", "PERFIL"]]
     .map(([v, l]) => `<button data-act="tab" data-v="${v}" class="${S.tab === v ? "on" : ""}">${l}</button>`).join("");
   if (S.tab === "inicio") viewHome();
+  else if (S.tab === "tareas") viewTasks();
   else if (S.tab === "materias") S.subjectId ? viewSubject() : viewSubjects();
   else if (S.tab === "perfil") viewProfile();
   else if (S.tab === "notas") viewNotes();
@@ -151,14 +191,32 @@ function viewWelcome() {
     $("#dot").className = "dot" + (r.ok ? " up" : ""); $("#health").textContent = r.ok ? "Servidor conectado" : "Servidor sin respuesta";
   });
 }
+// Cómo obtener un ID token sin la app (README > Backend > Probarlo con Postman)
+const README_TOKEN = "https://github.com/Manum03/NotiU#probarlo-con-postman";
+function fbConfigForm() {
+  const c = fbCfg();
+  return `<details class="card list" ${c.apiKey ? "" : "open"}><summary>CONFIGURAR FIREBASE<small>${c.apiKey ? "Proyecto: " + esc(c.projectId) : "Necesario para entrar con correo"}</small></summary>
+    <form data-form="fbConfig" class="in">
+      <label>Web API Key</label><input name="apiKey" value="${esc(c.apiKey)}" placeholder="Consola de Firebase > Configuración del proyecto">
+      <label>ID del proyecto</label><input name="projectId" value="${esc(c.projectId)}" placeholder="notiu-xxxxx (o demo-notiu con emuladores)">
+      <label>Emulador de Auth (opcional)</label><input name="emulator" value="${esc(c.emulator)}" placeholder="http://127.0.0.1:9099">
+      <small>Con el emulador puedes usar cualquier API key (por ejemplo "demo").</small>
+      <button class="btn out">GUARDAR Y RECARGAR</button></form></details>`;
+}
 function viewLogin() {
   $("#app").innerHTML = `<button class="link" data-act="go" data-v="welcome">← Volver</button>
-    <h1 class="logo s">NOTI<span>U</span></h1><h2>INICIAR SESIÓN</h2><p class="sub">Entra con tu cuenta para continuar.</p>
+    <h1 class="logo s">NOTI<span>U</span></h1><h2>INICIAR SESIÓN</h2><p class="sub">Entra con tu cuenta de Firebase.</p>
     <form data-form="login">
-      <label>Correo electrónico</label><input name="email" value="admin@notiu.com" autocomplete="username">
-      <label>Contraseña</label><input name="password" type="password" value="admin1234" autocomplete="current-password">
+      <label>Correo electrónico</label><input name="email" type="email" placeholder="Ejemplo@correo.com" autocomplete="username">
+      <label>Contraseña</label><input name="password" type="password" autocomplete="current-password">
       <button class="btn">ENTRAR</button></form>
-    <p class="sub c" style="margin-top:16px">¿No tienes cuenta? <button class="link" data-act="go" data-v="register">Crea una</button></p>`;
+    <p class="sub c" style="margin-top:16px">¿No tienes cuenta? <button class="link" data-act="go" data-v="register">Crea una</button></p>
+    <div class="or">O</div>
+    <details class="card list"><summary>PEGAR UN ID TOKEN<small>Sin configurar Firebase en esta página</small></summary>
+      <form data-form="token" class="in"><label>ID token de Firebase</label><textarea name="token" rows="4" placeholder="eyJhbGciOi..."></textarea>
+        <small>Cómo obtenerlo: <a href="${README_TOKEN}" target="_blank" rel="noopener">README › Probarlo con Postman</a>. Dura 1 hora.</small>
+        <button class="btn out">USAR TOKEN</button></form></details>
+    ${fbConfigForm()}`;
 }
 function viewRegister() {
   $("#app").innerHTML = `<button class="link" data-act="go" data-v="welcome">← Volver</button>
@@ -169,7 +227,8 @@ function viewRegister() {
       <label>Contraseña</label><input name="password" type="password" placeholder="Mínimo 8 caracteres">
       <label>Confirmar contraseña</label><input name="confirm" type="password" placeholder="Repite tu contraseña">
       <button class="btn">CREAR MI CUENTA</button></form>
-    <p class="sub c" style="margin-top:16px">¿Ya tienes una cuenta? <button class="link" data-act="go" data-v="login">Inicia sesión</button></p>`;
+    <p class="sub c" style="margin-top:16px">¿Ya tienes una cuenta? <button class="link" data-act="go" data-v="login">Inicia sesión</button></p>
+    ${fbConfigForm()}`;
 }
 
 /* ---------- Pantalla de inicio ---------- */
@@ -181,9 +240,10 @@ async function viewHome() {
       <button class="round" data-act="tab" data-v="perfil" title="Mi perfil">${esc(S.user.name[0].toUpperCase())}</button></div></div>
     <div id="home" class="sub" style="margin-top:16px">Cargando…</div>`;
   const q = "/api/notifications?limit=10" + (S.cat ? "&category=" + S.cat : "");
-  const [s, n, g] = await Promise.all([api("GET", "/api/subjects"), api("GET", q), api("GET", "/api/grades")]);
+  const [s, n, g, it] = await Promise.all([api("GET", "/api/subjects"), api("GET", q), api("GET", "/api/grades"), api("GET", "/api/integrations")]);
   if (S.tab !== "inicio" || !$("#home")) return;
   const notis = n.ok ? n.data.data : [], grades = g.ok ? g.data.data : [], unread = n.ok ? n.data.meta.unreadCount : 0;
+  const integ = it.ok ? it.data.data : [];
   if (unread) { $("#badge").hidden = false; $("#badge").textContent = unread; }
   $("#home").outerHTML = `
     <div class="two"><div class="card stat"><b class="num">${s.ok ? s.data.total : "–"}</b><small>materias registradas</small></div>
@@ -201,8 +261,45 @@ async function viewHome() {
         <small>${esc(x.title)} · ${x.weight}%${x.corte ? " · corte " + x.corte : ""} · ${fmt(x.date)}</small></div>`).join("")
       : `<p class="sub">Aún no hay notas. Regístralas dentro de una materia.</p>`}
     <h2>CONEXIONES</h2>
-    <div class="card"><p class="sub">¡Elige con qué plataforma quieres conectarte!</p>
-      <div class="two">${["Correo", "Classroom", "Universidad", "Teams"].map((c) => `<span class="sub">○ ${c} <small>(pronto)</small></span>`).join("")}</div></div>`;
+    ${it.ok ? integ.map(viewIntegration).join("") : `<p class="sub">No se pudieron cargar las conexiones.</p>`}
+    <details class="card list"><summary>CONECTAR MOODLE<small>Pega el enlace de "Exportar calendario" (iCal)</small></summary>
+      <form data-form="moodle" class="in"><label>Enlace del calendario</label><input name="icalUrl" placeholder="https://moodle.../calendar/export_execute.php?...">
+        <small>Calendario → Importar o exportar calendarios → Exportar calendario → Eventos: Todos, Período: Eventos recientes y próximos → Obtener URL del calendario.</small>
+        <button class="btn">CONECTAR</button></form></details>`;
+}
+// Tarjeta de una integración (GET /api/integrations)
+const INTEG_STATE = { active:["CONECTADO", "inf"], error:["CON ERROR", "urg"], needs_reauth:["RECONECTAR", "urg"] };
+function viewIntegration(x) {
+  const [label, cls] = x.connected ? INTEG_STATE[x.status] || ["CONECTADO", "inf"] : ["SIN CONECTAR", ""];
+  return `<div class="card"><div class="top"><h3>${esc(x.label)}</h3><span class="tag ${cls}">${label}</span></div>
+    ${x.displayName ? `<small>${esc(x.displayName)}</small><br>` : ""}
+    <small>${x.lastSyncAt ? "Última sincronización: " + fmtTime(x.lastSyncAt) : "Sin sincronizar"}${x.lastStats ? ` · ${x.lastStats.total} tareas` : ""}</small>
+    ${x.lastError ? `<p class="low"><small>${esc(x.lastError)}</small></p>` : ""}
+    ${x.connected ? `<button class="btn out" data-act="sync" data-v="${esc(x.provider)}">SINCRONIZAR AHORA</button>` : ""}</div>`;
+}
+const fmtTime = (iso) => new Date(iso).toLocaleString("es-CO", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+
+/* ---------- Tareas (GET /api/tasks) ---------- */
+const TASK_SRC = { MANUAL:"NotiU", MOODLE:"Moodle", CLASSROOM:"Classroom" };
+function viewTasks() {
+  $("#app").innerHTML = head("MIS", "TAREAS", "Las que creas en NotiU y las que llegan de Moodle o Classroom.") + `
+    <div class="chips">${[["pendiente", "Pendientes"], ["en_curso", "En curso"], ["realizada", "Realizadas"], ["", "Todas"]]
+      .map(([v, l]) => `<button class="chip ${S.taskStatus === v ? "on" : ""}" data-act="taskStatus" data-v="${v}">${l}</button>`).join("")}</div>
+    <div id="tasks" class="sub">Cargando…</div>`;
+  loadTasks();
+}
+async function loadTasks() {
+  const r = await api("GET", "/api/tasks" + (S.taskStatus ? "?status=" + S.taskStatus : ""));
+  if (S.tab !== "tareas" || !$("#tasks")) return;
+  if (!r.ok) { $("#tasks").textContent = "No se pudieron cargar las tareas."; return fail(r); }
+  const { tasks, total } = r.data;
+  $("#tasks").outerHTML = `<div id="tasks"><small>${total} tarea(s)</small>${tasks.length ? tasks.map((t) => `<div class="card">
+      <div class="top"><h3>${esc(t.title)}</h3><span class="tag ${t.isOverdue ? "urg" : "inf"}">${TASK_SRC[t.source] || esc(t.source)}</span></div>
+      ${t.courseName ? `<small>${esc(t.courseName)}</small><br>` : ""}
+      <small class="${t.isOverdue ? "low" : ""}">${t.dueAt ? "Entrega: " + fmtTime(t.dueAt) : "Sin fecha"}${t.isOverdue ? " · vencida" : ""} · prioridad ${esc(t.priority)} · ${esc(t.status.replace("_", " "))}</small>
+      ${t.url && /^https?:\/\//i.test(t.url) ? `<p><a href="${esc(t.url)}" target="_blank" rel="noopener">Abrir en ${TASK_SRC[t.source] || "la plataforma"}</a></p>` : ""}
+      ${t.status !== "realizada" ? `<button class="btn out" data-act="completeTask" data-id="${esc(t.id)}">MARCAR COMO REALIZADA</button>` : ""}</div>`).join("")
+    : `<p class="sub">No hay tareas${S.taskStatus ? " con este estado" : ""}.</p>`}</div>`;
 }
 
 /* ---------- Materias (lista) ---------- */
@@ -527,7 +624,20 @@ const acts = {
     const r = await api("GET", "/api/auth/users"); if (!r.ok) return fail(r);
     $("#users").innerHTML = r.data.map((u) => `<p><b>${esc(u.name)}</b><br><small>${esc(u.email)} · ${u.role}</small></p>`).join("");
   },
-  async logout() { const r = await api("POST", "/api/auth/logout"); if (r.ok) toast(r.data.message); endSession(); },
+  async logout() { await endSession(); toast("Sesión cerrada"); },
+  // Tareas e integraciones
+  taskStatus(el) { S.taskStatus = el.dataset.v; viewTasks(); },
+  async completeTask(el) {
+    const r = await api("PATCH", `/api/tasks/${el.dataset.id}/complete`);
+    if (r.ok) { toast(r.data.message); keep(loadTasks); } else fail(r);
+  },
+  async sync(el) {
+    el.disabled = true;
+    const r = await api("POST", `/api/integrations/${el.dataset.v}/sync`);
+    if (r.ok) { toast(`Sincronizado: ${r.data.total} tareas, ${r.data.created} nuevas`); keep(viewHome); }
+    else if (r.status === 429) { el.disabled = false; toast("Espera un minuto antes de sincronizar de nuevo.", true); }
+    else { el.disabled = false; fail(r); }
+  },
   // Apuntes
   noteTag(el) { S.noteTag = el.dataset.v; loadNotes(); },
   async pin(el) {
@@ -582,11 +692,29 @@ document.addEventListener("click", (e) => { const el = e.target.closest("[data-a
 /* ---------- Formularios ---------- */
 const patchSettings = async (b) => { const r = await api("PATCH", "/api/settings", b); r.ok ? toast(r.data.message) : fail(r); };
 const forms = {
-  async login(f) { const r = await api("POST", "/api/auth/login", { email:f.email, password:f.password }, false); r.ok ? start(r.data) : fail(r); },
+  // Login y registro con el SDK web de Firebase; el backend solo recibe el ID token
+  async login(f) {
+    try { const auth = await fbInit(); await FB.mod.signInWithEmailAndPassword(auth, f.email.trim(), f.password); start(); }
+    catch (e) { fbFail(e); }
+  },
+  token(f) {
+    const t = f.token.trim(); if (!t) return toast("Pega un ID token de Firebase", true);
+    S.token = t; store.set("token", t); start();
+  },
+  fbConfig(f) {
+    store.set("fbKey", f.apiKey.trim()); store.set("fbProject", f.projectId.trim()); store.set("fbEmu", f.emulator.trim());
+    location.reload();   // Firebase no se puede reiniciar con otra configuración sin recargar
+  },
   async register(f) {
     if (f.password !== f.confirm) return toast("Las contraseñas no coinciden", true);
-    const r = await api("POST", "/api/auth/register", { name:f.name, email:f.email, password:f.password }, false);
-    if (r.ok) { toast("Cuenta creada"); start(r.data); } else fail(r);
+    if (f.password.length < 8) return toast("La contraseña debe tener al menos 8 caracteres", true);
+    try {
+      const auth = await fbInit();
+      const cred = await FB.mod.createUserWithEmailAndPassword(auth, f.email.trim(), f.password);
+      if (f.name.trim()) await FB.mod.updateProfile(cred.user, { displayName:f.name.trim() });
+      await cred.user.getIdToken(true);   // nuevo token con el nombre, para que el backend lo guarde
+      toast("Cuenta creada"); start();
+    } catch (e) { fbFail(e); }
   },
   async newSubject(f) {
     const b = { name:f.name, code:f.code, credits:num(f.credits), semester:num(f.semester) };
@@ -604,9 +732,20 @@ const forms = {
   },
   async editName(f) { const r = await api("PATCH", "/api/profile", { name:f.name }); if (r.ok) { toast(r.data.message); S.user.name = r.data.profile.name; viewProfile(); } else fail(r); },
   async editAcademic(f) { const r = await api("PATCH", "/api/profile", { career:f.career, semester:num(f.semester), bio:f.bio }); if (r.ok) { toast(r.data.message); viewProfile(); } else fail(r); },
+  // El cambio de contraseña lo hace Firebase (reautenticar + updatePassword)
   async password(f) {
-    const r = await api("PATCH", "/api/auth/password", { currentPassword:f.currentPassword, newPassword:f.newPassword });
-    if (r.ok) { toast(r.data.message); viewProfile(); } else fail(r);
+    const u = FB.auth?.currentUser;
+    if (!u) return toast("Solo disponible si entraste con correo y contraseña.", true);
+    if (f.newPassword.length < 8) return toast("La nueva contraseña debe tener al menos 8 caracteres", true);
+    try {
+      await FB.mod.reauthenticateWithCredential(u, FB.mod.EmailAuthProvider.credential(u.email, f.currentPassword));
+      await FB.mod.updatePassword(u, f.newPassword);
+      toast("Contraseña actualizada"); viewProfile();
+    } catch (e) { fbFail(e); }
+  },
+  async moodle(f) {
+    const r = await api("PUT", "/api/integrations/moodle", { icalUrl:f.icalUrl.trim() });
+    if (r.ok) { toast(`${r.data.message}. Importamos ${r.data.sync.created} tareas.`); keep(viewHome); } else fail(r);
   },
   privacy: (f) => patchSettings({ privacy:{ showProfileToPeers:f.peers === "on" } }),
   notif: (f) => patchSettings({ notifications:{ email:f.email === "on", push:f.push === "on", studyReminders:f.study === "on" } }),
@@ -643,7 +782,8 @@ document.addEventListener("change", (e) => {
   if (e.target.id === "noteSubject") { S.noteSubject = e.target.value; loadNotes(); }
 });
 
-render();
+// Al abrir: si Firebase está configurado, recupera la sesión guardada antes de mostrar nada
+(fbCfg().apiKey ? fbInit().catch(fbFail) : Promise.resolve()).then(render);
 })();
 </script>
 </body>

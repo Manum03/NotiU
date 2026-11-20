@@ -7,7 +7,7 @@
 | **Asignatura** | Construcción de Software |
 | **Docente** | Diego Andrés Baquero Tibocha |
 | **Integrantes** | Alejandro Rodríguez, Alejandro Martínez, David Muñoz, Yorman Sanabria y Jireth Suárez |
-| **Versión actual** | `v0.5.0` |
+| **Versión actual** | `v0.6.1` |
 | **Repositorio** | https://github.com/Manum03/NotiU |
 | **Colección Postman** | [NotiU-Workspace (Colección oficial compartida)](https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share&creator=59230493) |
 
@@ -17,7 +17,7 @@
 
 ```
 NotiU/
-├── backend/                          API REST en Node.js + Express 5 + TypeScript
+├── backend/                          API REST en Node.js + Express 5 + TypeScript + Firebase
 ├── mobile/                           Arquitectura base de la aplicación móvil
 └── docs/                             Documentación formal en LaTeX
     ├── documentacion_notiu.tex       Manual técnico, guía UI/UX y notas de versión
@@ -59,44 +59,67 @@ pdflatex terminos_y_condiciones.tex
 
 ---
 
+## App móvil: cómo correrla (`mobile/`)
+
+La app usa **Firebase Authentication** (SDK web de Firebase, funciona en **Expo Go**) y se comunica con el backend enviando el ID token de Firebase.
+
+1. En la consola de Firebase, en *Configuración del proyecto → Tus apps*, registra una **app web** (`</>`) y copia su configuración.
+2. Copia `mobile/.env.example` como `mobile/.env` y llena los valores. En `EXPO_PUBLIC_API_URL` pon la IP de tu computador en la red Wi-Fi (no `localhost`).
+3. Instala y arranca:
+
+   ```bash
+   cd mobile
+   npm install
+   npx expo start      # escanea el QR con Expo Go
+   ```
+
+Ya funciona con el backend: registro, inicio de sesión (la sesión queda guardada), recuperación de contraseña, cierre de sesión (desde el avatar), Inicio, Materias, Nueva tarea/recordatorio/nota, Recordatorios (completar, subtareas, archivar, restaurar y eliminar) y **conectar Moodle** (tarjeta *Universidad / Plataforma* del Inicio).
+
+Pendiente: inicio de sesión con Google, conexión con Classroom y notificaciones push (requieren *development build*), y las pantallas de Notificaciones y Perfil. Ver `CODEX_TAREAS.md`.
+
+---
+
 ## Backend: API REST (`backend/`)
 
-API REST construida con **Node.js**, **TypeScript** y **Express 5**.
+API REST construida con **Node.js**, **TypeScript** y **Express 5**, con **Firebase Authentication** y **Cloud Firestore**.
 
-- **Sin base de datos (prototipo actual):** usuarios, sesiones, materias, calificaciones, ajustes, notificaciones, apuntes, conexiones, grupos de estudio y tips se almacenan en arreglos en memoria (se reinician al reiniciar el servidor).
-- **Tipado estricto:** modelos de dominio y DTOs de entrada/salida en TypeScript.
-- **Validaciones:** campos obligatorios, formato de email, contraseña de mínimo 8 caracteres, rangos de notas (`0.0`–`5.0`), cortes (`1`–`4`) y bloques horarios; errores detallados en `details`.
-- **Manejo de errores:** respuestas JSON uniformes con códigos `400`, `401`, `403`, `404`, `409` y `500` (incluyendo JSON mal formado).
-- **Seguridad:** contraseñas hasheadas con `scrypt` (`crypto` nativo de Node). Tokens Bearer aleatorios con expiración de 1 hora.
+- **Autenticación con Firebase:** la app móvil registra e inicia sesión con el SDK de Firebase Auth (correo/contraseña o Google). Cada petición envía el **ID token** de Firebase y el backend lo verifica con Firebase Admin. Las contraseñas nunca pasan por el backend. El rol `admin` se asigna con la variable `ADMIN_EMAILS` (ya no se puede enviar `role` desde el cliente).
+- **Base de datos:** usuarios, ajustes, tareas, notificaciones, integraciones, dispositivos y recordatorios viven en **Firestore**. Las tareas importadas de Moodle/Classroom y las creadas por el estudiante comparten el mismo modelo (`source`: `MANUAL`, `MOODLE`, `CLASSROOM`). Los módulos de materias, notas, apuntes, conexiones, grupos y tips **todavía están en memoria** (pendiente de migrar).
+- **Integraciones:**
+  - **Moodle** mediante el enlace privado de *Exportar calendario* (iCal). No requiere la contraseña del estudiante.
+  - **Google Classroom** con OAuth de solo lectura (`classroom.courses.readonly`, `classroom.coursework.me.readonly`) y consulta periódica.
+- **Notificaciones:** al detectar una tarea nueva o un cambio de fecha se guarda la notificación y se envía un **push con Expo**. Los recordatorios se programan por defecto 24 h y 2 h antes de la entrega (configurable en ajustes).
+- **Jobs:** cada `SYNC_INTERVAL_MINUTES` (30 por defecto) se sincronizan todas las integraciones; cada minuto se envían los recordatorios pendientes.
+- **Seguridad:** los secretos (enlace iCal y refresh token de Google) se guardan **cifrados con AES-256-GCM**. Las URLs que escribe el usuario se validan para que no apunten a redes internas. Las reglas de Firestore bloquean todo acceso directo desde clientes.
+- **Validaciones y errores:** se mantienen los mismos formatos de antes (`400` con `details`, `401`, `403`, `404`, `409`, `429`, `500`).
 
-### Cobertura de Endpoints (`v0.5.0`)
+### Cobertura de Endpoints (`v0.6.0`)
 
-Del inventario general de **43 endpoints** diseñados para NotiU (base `http://localhost:3000`), el backend cuenta con **41 endpoints implementados**:
+Base `http://localhost:3000`.
 
 | Módulo | Método | Ruta | Auth | Descripción |
 |---|---|---|---|---|
 | **Health** | `GET` | `/api/health` | No | Comprueba que el servidor está activo (`{ status: "ok" }`) |
-| **Auth** | `POST` | `/api/auth/register` | No | Registra un usuario y devuelve un token (`201`) |
-| **Auth** | `POST` | `/api/auth/login` | No | Inicia sesión con email y contraseña, devuelve un token |
-| **Auth** | `GET` | `/api/auth/me` | Sí | Devuelve el perfil público del usuario autenticado |
-| **Auth** | `PATCH` | `/api/auth/password` | Sí | Cambia la contraseña y cierra las demás sesiones del usuario |
-| **Auth** | `POST` | `/api/auth/logout` | Sí | Cierra la sesión actual |
+| **Auth** | `GET` | `/api/auth/me` | Sí | Devuelve el usuario autenticado (lo crea en Firestore la primera vez) |
 | **Auth** | `GET` | `/api/auth/users` | Sí (`admin`) | Lista los usuarios registrados sin el hash de contraseña |
-| **Notificaciones** | `GET` | `/api/notifications` | Sí | Lista alertas paginadas (`MOODLE`, `CLASSROOM`, `SYSTEM`) con `unreadCount` y filtros (`category`, `read`) |
+| **Notificaciones** | `GET` | `/api/notifications` | Sí | Lista alertas paginadas (`MOODLE`, `CLASSROOM`, `SYSTEM`) con `unreadCount`, `kind`, `taskId` y filtros (`category`, `read`) |
+| **Notificaciones** | `PATCH` | `/api/notifications/:notificationId/read` | Sí | Marca una notificación como leída |
+| **Notificaciones** | `POST` | `/api/notifications/read-all` | Sí | Marca todas como leídas |
+| **Notificaciones** | `POST` | `/api/notifications/test` | Sí | Envía un push de prueba a los dispositivos del usuario |
 | **Perfil** | `GET` | `/api/profile` | Sí | Obtiene datos académicos (universidad, carrera, semestre, bio, intereses) |
 | **Perfil** | `PATCH` | `/api/profile` | Sí | Actualiza parcialmente el perfil del estudiante |
-| **Ajustes** | `GET` | `/api/settings` | Sí | Consulta tema (`light`/`dark`/`system`), alertas y privacidad |
+| **Ajustes** | `GET` | `/api/settings` | Sí | Consulta tema, alertas, tiempos de recordatorio (`reminders.offsetsMinutes`) y privacidad |
 | **Ajustes** | `PATCH` | `/api/settings` | Sí | Modifica parcialmente preferencias de tema, alertas o privacidad |
 | **Materias** | `POST` | `/api/subjects` | Sí | Crea una materia con créditos, semestre, docente, color y horario |
 | **Materias** | `GET` | `/api/subjects` | Sí | Lista materias del usuario con filtros (`semester`, `status`, `search`) |
 | **Materias** | `GET` | `/api/subjects/:subjectId` | Sí | Obtiene el detalle de la materia y su resumen de notas |
 | **Materias** | `PATCH` | `/api/subjects/:subjectId` | Sí | Actualiza parcialmente los datos u horario de una materia |
 | **Materias** | `GET` | `/api/subjects/:subjectId/schedule` | Sí | Devuelve las sesiones semanales de horario de la materia |
-| **Materias** | `DELETE` | `/api/subjects/:subjectId` | Sí | Elimina la materia y sus calificaciones vinculadas *(en `main` `v0.5.0`)* |
-| **Notas** | `POST` | `/api/subjects/:subjectId/grades` | Sí | Registra una nota (`0.0–5.0`), porcentaje (`1–100`) y corte (`1–4`) *(en `main` `v0.5.0`)* |
-| **Notas** | `GET` | `/api/subjects/:subjectId/grades` | Sí | Lista las notas de una materia y su promedio ponderado *(en `main` `v0.5.0`)* |
-| **Notas** | `GET` | `/api/subjects/:subjectId/progress` | Sí | Proyecta estado de aprobación y nota necesaria en lo restante *(en `main` `v0.5.0`)* |
-| **Notas** | `GET` | `/api/grades` | Sí | Consolidado general de notas filtrable por `semester` y `corte` *(en `main` `v0.5.0`)* |
+| **Materias** | `DELETE` | `/api/subjects/:subjectId` | Sí | Elimina la materia y sus calificaciones vinculadas |
+| **Notas** | `POST` | `/api/subjects/:subjectId/grades` | Sí | Registra una nota (`0.0–5.0`), porcentaje (`1–100`) y corte (`1–4`) |
+| **Notas** | `GET` | `/api/subjects/:subjectId/grades` | Sí | Lista las notas de una materia y su promedio ponderado |
+| **Notas** | `GET` | `/api/subjects/:subjectId/progress` | Sí | Proyecta estado de aprobación y nota necesaria en lo restante |
+| **Notas** | `GET` | `/api/grades` | Sí | Consolidado general de notas filtrable por `semester` y `corte` |
 | **Apuntes** | `GET` | `/api/notes` | Sí | Lista apuntes paginados con filtros (`subjectId`, `tag`, `search`); fijados primero |
 | **Apuntes** | `POST` | `/api/notes` | Sí | Crea un apunte (título 1–150) con materia y etiquetas opcionales (`201`) |
 | **Apuntes** | `PATCH` | `/api/notes/:noteId` | Sí | Edita título, contenido, materia, etiquetas o fijado; solo el autor (`403`) |
@@ -116,139 +139,121 @@ Del inventario general de **43 endpoints** diseñados para NotiU (base `http://l
 | **Tips** | `GET` | `/api/tips/:tipId` | Sí | Contenido completo y recursos de un tip |
 | **Tips** | `POST` | `/api/tips/:tipId/save` | Sí | Guarda un tip en favoritos (`201`, `409` si ya estaba) |
 | **Tips** | `DELETE` | `/api/tips/:tipId/save` | Sí | Quita un tip de favoritos |
+| **Tareas** | `GET` | `/api/tasks` | Sí | Lista tareas, recordatorios y notas, manuales e importadas de Moodle/Classroom (`status`, `type`, `priority`, `subjectId`, `dueDate`, `search`, `source`, `archived`), ordenadas por fecha de entrega |
+| **Tareas** | `POST` | `/api/tasks` | Sí | Crea una tarea (`type`: `tarea`/`recordatorio`/`nota`) con prioridad, materia, `dueDate` + `dueTime` y subtareas; programa sus recordatorios (`201`) |
+| **Tareas** | `GET` | `/api/tasks/:taskId` | Sí | Detalle de una tarea (`{ task }`) |
+| **Tareas** | `PATCH` | `/api/tasks/:taskId` | Sí | Actualiza la tarea. En las importadas solo se cambian estado, prioridad, materia y subtareas |
+| **Tareas** | `PATCH` | `/api/tasks/:taskId/complete` | Sí | Marca la tarea como `realizada` y cancela sus recordatorios |
+| **Tareas** | `PATCH` | `/api/tasks/:taskId/archive` | Sí | Archiva la tarea (sale de la lista principal y se cancelan sus recordatorios) |
+| **Tareas** | `PATCH` | `/api/tasks/:taskId/restore` | Sí | Restaura una tarea archivada (`GET /api/tasks?archived=true` lista las archivadas) |
+| **Tareas** | `DELETE` | `/api/tasks/:taskId` | Sí | Elimina una tarea creada en NotiU (las importadas se marcan como realizadas) |
+| **Integraciones** | `GET` | `/api/integrations` | Sí | Estado de Moodle y Classroom (conectado, última sincronización, errores) |
+| **Integraciones** | `PUT` | `/api/integrations/moodle` | Sí | Conecta Moodle con el enlace de exportación del calendario (`icalUrl`) y sincroniza |
+| **Integraciones** | `POST` | `/api/integrations/classroom` | Sí | Conecta Classroom con el `serverAuthCode` de Google Sign-In y sincroniza |
+| **Integraciones** | `POST` | `/api/integrations/:provider/sync` | Sí | Sincroniza ahora (`moodle` o `classroom`); máximo una vez por minuto (`429`) |
+| **Integraciones** | `DELETE` | `/api/integrations/:provider` | Sí | Desconecta la plataforma y borra sus tareas importadas |
+| **Dispositivos** | `POST` | `/api/devices` | Sí | Registra el Expo push token del celular (`token`, `platform`) |
+| **Dispositivos** | `DELETE` | `/api/devices` | Sí | Elimina el token (body `{ token }`) al cerrar sesión |
 
 Los endpoints protegidos requieren el encabezado:
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <ID token de Firebase>
 ```
-
-**Usuario de prueba** (se crea automáticamente al iniciar el servidor):
-
-- Email: `admin@notiu.com`
-- Contraseña: `admin1234`
-- Rol: `admin`
 
 ### Estructura del código (`backend/src/`)
 
 ```
 backend/src/
-├── config/env.ts                      Puerto y duración de la sesión
-├── models/                            Modelos de dominio y DTOs (auth, profile, settings, subject, grade, notification, note, connection, study-group, tip)
-├── utils/                             Validadores, hash scrypt y clase HttpError
-├── services/                          Lógica de negocio y almacenamiento en memoria
-├── middlewares/                       requireAuth, requireRole, manejo de errores y 404
+├── config/env.ts                      Variables de entorno (.env)
+├── config/firebase.ts                 Firebase Admin: Auth + Firestore
+├── models/                            Modelos de dominio y DTOs (incluye task, integration)
+├── utils/                             Validadores, cifrado, fechas, helpers de Firestore, HttpError
+├── services/                          Lógica de negocio
+│   ├── integrations/                  Conectores (patrón Strategy): Moodle iCal y Classroom
+│   ├── notifications/                 Envío de push con Expo
+│   ├── sync.service.ts                Motor de sincronización (detecta nuevas tareas y cambios)
+│   └── reminder.service.ts            Programación y envío de recordatorios
+├── jobs/                              Sincronización periódica y recordatorios
+├── middlewares/                       requireAuth (Firebase), requireRole, errores y 404
 ├── controllers/                       Controladores HTTP por módulo
 ├── routes/                            Definición de rutas Express
 ├── app.ts                             Configuración principal de Express
-└── server.ts                          Arranque del servidor
+└── server.ts                          Arranque: carga usuarios, abre el puerto e inicia los jobs
 ```
+
+### Configuración de Firebase (una sola vez)
+
+1. Crear un proyecto en la [consola de Firebase](https://console.firebase.google.com) (por ejemplo `notiu-xxxxx`).
+2. **Authentication → Sign-in method:** activar *Correo electrónico/contraseña* y *Google*.
+3. **Firestore Database → Crear base de datos** (modo producción, región `southamerica-east1` o `us-central1`). Publicar las reglas de `backend/firestore.rules`.
+4. **Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada.** Guardar el archivo como `backend/serviceAccountKey.json` (ya está en `.gitignore`, **nunca** subirlo a git).
+5. **Configuración del proyecto → General → Agregar app** Android (paquete, p. ej. `co.edu.notiu`) e iOS, y descargar `google-services.json` / `GoogleService-Info.plist` para la app móvil.
+
+### Configuración de Google Classroom (opcional)
+
+1. En [Google Cloud Console](https://console.cloud.google.com) abrir **el mismo proyecto** de Firebase y habilitar la **Google Classroom API**.
+2. **Pantalla de consentimiento OAuth:** tipo *Externo*, agregar los scopes `classroom.courses.readonly` y `classroom.coursework.me.readonly`, y agregar como **usuarios de prueba** los correos del equipo (máximo 100 mientras la app no esté verificada).
+3. **Credenciales:** usar el cliente OAuth de tipo *Aplicación web* que crea Firebase (el mismo `webClientId` de la app). Copiar su *Client ID* y *Client secret* en `.env`.
+4. Las cuentas institucionales pueden tener bloqueadas las apps externas: si falla, probar con una cuenta personal de Classroom.
 
 ### Cómo correrlo
 
-Requisitos: **Node.js 18 o superior** y npm.
+Requisitos: **Node.js 22.12 o superior** y npm (`node -v` para verificar).
 
-1. Entrar a la carpeta del backend e instalar las dependencias:
+```bash
+cd backend
+npm install
+cp .env.example .env      # y llenar los valores
+npm run dev               # http://localhost:3000
+```
 
-   ```bash
-   cd backend
-   npm install
-   ```
+**Sin credenciales (emuladores):** con `firebase-tools` y Java 11+ instalados:
 
-2. Levantar el servidor en modo desarrollo (se recarga solo al guardar cambios):
+```bash
+npm run emulators         # Auth en 9099, Firestore en 8080, UI en 4000
+# En .env: FIREBASE_PROJECT_ID=demo-notiu, FIRESTORE_EMULATOR_HOST=127.0.0.1:8080,
+#          FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+npm run dev
+```
 
-   ```bash
-   npm run dev
-   ```
+**Pruebas de punta a punta** (usa el emulador de Auth, no necesita Java ni credenciales):
 
-   O compilar y ejecutar la versión de producción:
-
-   ```bash
-   npm run build
-   npm start
-   ```
-
-3. El servidor queda escuchando en `http://localhost:3000`. Para usar otro puerto:
-
-   ```bash
-   PORT=4000 npm run dev
-   ```
+```bash
+npm run test:e2e
+```
 
 ### Probarlo con Postman
 
-Puedes importar o abrir directamente la [colección oficial compartida en Postman](https://ysanabria188-afk-895689.postman.co/workspace/NotiU-Workspace~ddc04279-c190-4903-8dab-24aeebb6402c/collection/59230493-d05123b7-8411-4172-ab8e-53615029c7c8?action=share&creator=59230493), o configurar una colección rápida para autenticación así:
+Como el login ahora lo hace Firebase, primero se obtiene un **ID token**:
 
-#### 1. Preparar la colección
+- **Con emuladores:** `POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo` con body `{"email":"ana@uni.edu","password":"secreta123","returnSecureToken":true}` (o `accounts:signInWithPassword` si ya existe).
+- **Con el proyecto real:** `POST https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=<Web API Key>` con el mismo body.
 
-1. En Postman, crear una colección nueva llamada **NotiU**.
-2. En la pestaña **Variables** de la colección, agregar:
-
-   | Variable | Valor |
-   |---|---|
-   | `baseUrl` | `http://localhost:3000/api/auth` |
-   | `token` | (vacío, se llena solo al hacer login) |
-
-3. En la pestaña **Authorization** de la colección, elegir **Bearer Token** y en *Token* poner `{{token}}`. Así todas las peticiones envían el token automáticamente.
-
-#### 2. Crear las peticiones base de Auth
-
-Para las peticiones con body: pestaña **Body** → **raw** → **JSON**.
-
-| # | Nombre | Método | URL | Body (JSON) |
-|---|---|---|---|---|
-| 1 | Register | POST | `{{baseUrl}}/register` | `{"name": "Ana", "email": "ana@uni.edu", "password": "secreta123"}` |
-| 2 | Login | POST | `{{baseUrl}}/login` | `{"email": "ana@uni.edu", "password": "secreta123"}` |
-| 3 | Me | GET | `{{baseUrl}}/me` | — |
-| 4 | Change password | PATCH | `{{baseUrl}}/password` | `{"currentPassword": "secreta123", "newPassword": "nueva12345"}` |
-| 5 | Logout | POST | `{{baseUrl}}/logout` | — |
-| 6 | Users (admin) | GET | `{{baseUrl}}/users` | — |
-
-En **Register** y **Login**, pegar este script en la pestaña **Scripts → Post-response** para guardar el token en la variable automáticamente:
+Copiar el campo `idToken` de la respuesta en la variable `token` de la colección (dura 1 hora). Script *Post-response* sugerido:
 
 ```js
 const data = pm.response.json();
-if (data.token) {
-  pm.collectionVariables.set("token", data.token);
-}
+if (data.idToken) pm.collectionVariables.set("token", data.idToken);
 ```
 
-Si no se usa el script, copiar a mano el `token` de la respuesta y pegarlo en la variable `token` de la colección.
+Flujo sugerido: `GET /api/auth/me` → `PUT /api/integrations/moodle` con `{"icalUrl": "<enlace de Moodle>"}` → `GET /api/tasks` → `GET /api/notifications`.
 
-#### 3. Orden sugerido para probar
-
-1. **Register** → `201 Created` con el token y los datos del usuario.
-2. **Me** → `200 OK` con el perfil de Ana.
-3. **Users (admin)** → `403 Forbidden`, porque Ana es `student`.
-4. **Change password** → `200 OK`.
-5. **Logout** → `200 OK`.
-6. **Me** otra vez → `401 Unauthorized` (`Token inválido`), porque la sesión se cerró.
-7. **Login** con `admin@notiu.com` / `admin1234` y luego **Users (admin)** → `200 OK` con la lista de usuarios.
-
-#### 4. Probar los errores
-
-- **Register** con el mismo email dos veces → `409 Conflict`.
-- **Register** con body `{"email": "x", "password": "123"}` → `400 Bad Request` con la lista de errores en `details`.
-- **Login** con una contraseña incorrecta → `401 Unauthorized`.
-- **Me** con la autorización en *No Auth* → `401 Unauthorized`.
-
-Ejemplo de respuesta de error:
-
-```json
-{
-  "error": "Datos inválidos",
-  "details": ["email debe ser un correo válido", "password debe tener al menos 8 caracteres"]
-}
-```
+**Cómo obtener el enlace de Moodle:** Calendario → *Importar o exportar calendarios* → *Exportar calendario* → Eventos: *Todos*, Período: *Eventos recientes y próximos* → *Obtener URL del calendario*.
 
 ### Limitaciones conocidas
 
-- Los datos se pierden al reiniciar el servidor (no hay base de datos persistente todavía).
-- `/api/auth/register` acepta cualquier `role` enviado en el body, incluido `admin`.
+- Materias, notas, apuntes, conexiones, grupos de estudio y tips siguen en memoria (se pierden al reiniciar).
+- El enlace iCal de Moodle no indica si una tarea ya fue entregada: el estudiante la marca como completada en NotiU.
+- Google limita a 100 usuarios de prueba mientras la pantalla de consentimiento de Classroom no esté verificada.
+- Los jobs corren dentro del mismo proceso: en hostings que "duermen" el servidor, la sincronización se pausa mientras duerme.
 
 ---
 
 ## Notas de Versión (*Release Notes*)
 
+- **`v0.6.1` (19 nov 2026):** App móvil conectada a Firebase Auth (registro, login persistente, recuperar contraseña y cerrar sesión), endpoints para archivar y restaurar tareas, pantalla para conectar Moodle desde el Inicio y recarga del Inicio al volver a la pantalla.
+- **`v0.6.0` (19 nov 2026):** Autenticación con **Firebase Auth** (ID tokens) y persistencia en **Firestore** para usuarios, ajustes y notificaciones. Módulo de **tareas** unificado (`/api/tasks`: las creadas en NotiU y las importadas, con prioridad, subtareas y recordatorios), **integraciones** con Moodle por iCal y Google Classroom por OAuth (`/api/integrations`), **dispositivos** para push con Expo (`/api/devices`), motor de sincronización con detección de tareas nuevas y cambios de fecha, recordatorios configurables, jobs periódicos, cifrado de secretos y pruebas de punta a punta (`npm run test:e2e`).
 - **`v0.5.0` (5–7 nov 2026):** Módulo de calificaciones por cortes (`/api/grades`, `/api/subjects/:id/grades`), proyección de nota necesaria para aprobar (`/api/subjects/:id/progress`), eliminación en cascada de materias (`DELETE /api/subjects/:id`) y documentación formal en LaTeX en `docs/` (manual técnico, sistema de diseño UI/UX y términos y condiciones preliminares de 1 página).
 - **`v0.4.0` (4–5 nov 2026):** Módulo de materias (`POST/GET/PATCH /api/subjects`) y consulta de horario semanal (`GET /api/subjects/:subjectId/schedule`).
 - **`v0.3.0` (4 nov 2026):** Módulos de perfil universitario (`GET/PATCH /api/profile`) y preferencias de usuario (`GET/PATCH /api/settings`).
