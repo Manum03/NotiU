@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -11,7 +12,10 @@ import SubjectDetailScreen from '../features/subjects/screens/SubjectDetailScree
 import AddSubjectScreen from '../features/subjects/screens/AddSubjectScreen';
 import AddTaskScreen from '../features/tasks/screens/AddTaskScreen';
 import RemindersScreen from '../features/tasks/screens/RemindersScreen';
+import ConnectMoodleScreen from '../features/integrations/screens/ConnectMoodleScreen';
 import type { Subject } from '../features/subjects/types';
+import { useAuth } from '../features/auth/hooks/useAuth';
+import { navigationRef } from './navigationRef';
 
 export type RootStackParamList = {
   Tasks: undefined;
@@ -22,6 +26,7 @@ export type RootStackParamList = {
   Subjects: undefined;
   SubjectDetail: { subject: Subject };
   AddSubject: { subjectId?: string } | undefined;
+  ConnectMoodle: undefined;
   AddTask: {
   type?: 'tarea' | 'recordatorio' | 'nota' | 'checklist';
   taskId?: string;
@@ -30,11 +35,36 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Pantallas que se pueden ver sin sesión
+const AUTH_ROUTES: (keyof RootStackParamList)[] = ['Welcome', 'Login', 'Register'];
+
 export default function AppNavigator() {
+  // Sesión de Firebase: decide la pantalla inicial y detecta cuando se cierra
+  const { user, initializing } = useAuth();
+
+  // Si la sesión termina (logout o sesión revocada) estando dentro de la app,
+  // se vuelve a la bienvenida. El login sigue navegando como antes (onLoginSuccess).
+  useEffect(() => {
+    if (initializing || user || !navigationRef.isReady()) return;
+    const current = navigationRef.getCurrentRoute()?.name;
+    if (current && !AUTH_ROUTES.includes(current)) {
+      navigationRef.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+    }
+  }, [user, initializing]);
+
+  if (initializing) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#10060A', justifyContent: 'center' }}>
+        <ActivityIndicator color="#AA0330" />
+      </View>
+    );
+  }
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
-        initialRouteName="Welcome"
+        // Solo se lee al montar: con sesión guardada se entra directo al Home
+        initialRouteName={user ? 'Home' : 'Welcome'}
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="Welcome">
@@ -42,6 +72,7 @@ export default function AppNavigator() {
             <WelcomeScreen
               onLogin={() => navigation.navigate('Login')}
               onRegister={() => navigation.navigate('Register')}
+              onGoogleSuccess={() => navigation.replace('Home')}
             />
           )}
         </Stack.Screen>
@@ -61,6 +92,7 @@ export default function AppNavigator() {
             <RegisterScreen
               onBack={() => navigation.goBack()}
               onLogin={() => navigation.navigate('Login')}
+              onGoogleSuccess={() => navigation.replace('Home')}
             />
           )}
         </Stack.Screen>
@@ -71,6 +103,7 @@ export default function AppNavigator() {
         <Stack.Screen name="AddSubject" component={AddSubjectScreen} />
         <Stack.Screen name="AddTask" component={AddTaskScreen} />
         <Stack.Screen name="Tasks" component={RemindersScreen} />
+        <Stack.Screen name="ConnectMoodle" component={ConnectMoodleScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

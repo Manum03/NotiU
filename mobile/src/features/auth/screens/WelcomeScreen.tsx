@@ -18,14 +18,20 @@ import {
   View,
   Pressable,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
+
+import { useGoogleLogin } from '../hooks/useGoogleLogin';
 
 type Props = {
   onLogin: () => void;
+  // "Continuar con Google" desde la bienvenida
+  onGoogleSuccess: () => void;
   onRegister: () => void;
 };
 
-export default function WelcomeScreen({ onLogin, onRegister }: Props) {
+export default function WelcomeScreen({ onLogin, onRegister, onGoogleSuccess }: Props) {
+  const google = useGoogleLogin(onGoogleSuccess);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalMessage, setModalMessage] = useState('');
@@ -152,10 +158,16 @@ export default function WelcomeScreen({ onLogin, onRegister }: Props) {
         <View style={styles.socialContainer}>
 
           <Pressable
-            style={styles.socialButton}
-            onPress={() => handleSocialLogin('Google')}
+            style={[styles.socialButton, google.loading && { opacity: 0.6 }]}
+            onPress={google.signIn}
+            disabled={google.loading}
+            accessibilityLabel="Continuar con Google"
           >
-            <Text style={styles.googleIcon}>G</Text>
+            {google.loading ? (
+              <ActivityIndicator color="#E9DDD3" />
+            ) : (
+              <Text style={styles.googleIcon}>G</Text>
+            )}
           </Pressable>
 
           <Pressable

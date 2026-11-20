@@ -1,15 +1,17 @@
+// La sesión la guarda Firebase Authentication (en AsyncStorage, renovando el token solo).
+// Aquí NO se guardan contraseñas ni tokens: todo se lee de `auth.currentUser`.
+//
+// `getSession` se conserva porque muchas pantallas del equipo lo usan para pasar
+// `session.token` a apiRequest. En código nuevo no hace falta: apiRequest pone el
+// ID token de Firebase automáticamente.
+import { auth } from '../../config/firebase';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Clave donde se guarda la sesión de NOTIU.
-const KEY = 'notiu_auth';
-
-// Estructura de la sesión que devuelve el backend.
+// Estructura de la sesión que usan las pantallas
 export type AuthSession = {
-  token: string;
+  token: string; // ID token de Firebase (se envía como Bearer al backend)
   expiresAt: string;
   user: {
-    id?: number;
+    id?: string; // UID de Firebase
     username?: string;
     name?: string;
     firstName?: string;
@@ -18,41 +20,29 @@ export type AuthSession = {
   };
 };
 
-// Guarda la sesión recibida del backend.
-export async function saveSession(session: AuthSession): Promise<void> {
-  await AsyncStorage.setItem(KEY, JSON.stringify(session));
-}
-
-// Recupera la sesión y comprueba que siga siendo válida.
+// Recupera la sesión activa. Si el token venció, Firebase entrega uno nuevo.
 export async function getSession(): Promise<AuthSession | null> {
-  const raw = await AsyncStorage.getItem(KEY);
+  await auth.authStateReady();
+  const user = auth.currentUser;
 
-  if (!raw) return null;
+  if (!user) return null;
 
   try {
-    const session = JSON.parse(raw) as AuthSession;
+    const result = await user.getIdTokenResult();
 
-    if (!session.token || !session.expiresAt || !session.user) {
-      await clearSession();
-      return null;
-    }
-
-    if (new Date(session.expiresAt).getTime() <= Date.now()) {
-      await clearSession();
-      return null;
-    }
-
-    return session;
+    return {
+      token: result.token,
+      expiresAt: result.expirationTime,
+      user: {
+        id: user.uid,
+        name: user.displayName ?? undefined,
+        email: user.email ?? undefined,
+      },
+    };
   } catch {
-    await clearSession();
+    // Sin conexión o sesión revocada
     return null;
   }
-}
-
-// Obtiene únicamente el token para las peticiones protegidas.
-export async function getToken(): Promise<string | null> {
-  const session = await getSession();
-  return session?.token ?? null;
 }
 
 // Obtiene los datos del usuario para mostrarlos en el Home.
@@ -60,57 +50,18 @@ export async function getStoredUser(): Promise<{
   username: string;
   email: string;
 } | null> {
-  const session = await getSession();
+  await auth.authStateReady();
+  const user = auth.currentUser;
 
-  if (!session) return null;
+  if (!user) return null;
 
   return {
-    username:
-      session.user.username ||
-      session.user.name ||
-      session.user.firstName ||
-      'Estudiante',
-    email: session.user.email || '',
+    username: user.displayName || user.email?.split('@')[0] || 'Estudiante',
+    email: user.email || '',
   };
 }
 
-// Elimina la sesión cuando el usuario cierra sesión.
+// Cierra la sesión de Firebase.
 export async function clearSession(): Promise<void> {
-  await AsyncStorage.removeItem(KEY);
-}
-
-const USERS_KEY = 'notiu_registered_users';
-
-// Estructura de las cuentas registradas temporalmente.
-export type StoredUser = {
-  username: string;
-  email: string;
-  password: string;
-};
-
-// Registra una cuenta local y evita correos duplicados.
-export async function registerLocalUser(
-  user: StoredUser
-): Promise<void> {
-  const raw = await AsyncStorage.getItem(USERS_KEY);
-
-  const users: StoredUser[] = raw ? JSON.parse(raw) : [];
-
-  const email = user.email.trim().toLowerCase();
-
-  const alreadyExists = users.some(
-    (item) => item.email.toLowerCase() === email
-  );
-
-  if (alreadyExists) {
-    throw new Error('Ya existe una cuenta registrada con ese correo.');
-  }
-
-  users.push({
-    ...user,
-    username: user.username.trim(),
-    email,
-  });
-
-  await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
+  await auth.signOut();
 }

@@ -22,9 +22,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-// Servicios para conectar con el backend y guardar la sesión.
-import { apiRequest } from '../../../services/api/api';
-import { saveSession, AuthSession } from '../../../services/storage/authStorage';
+// Inicio de sesión con Firebase (la sesión queda guardada automáticamente).
+import {
+  getAuthErrorMessage,
+  loginWithEmail,
+  sendPasswordReset,
+} from '../../../services/auth/authService';
+import GoogleButton from '../components/GoogleButton';
 
 type Props = {
   onBack: () => void;
@@ -57,38 +61,41 @@ const [password, setPassword] = useState('');
     try {
       setLoading(true);
 
-      // Enviar las credenciales al backend.
-      // IMPORTANTE: este ejemplo supone que el endpoint es POST /auth/login
-      // y que recibe username, email y password.
-        const response = await apiRequest<AuthSession>(
-          '/auth/login',
-             {
-              method: 'POST',
-              body: JSON.stringify({email: email.trim().toLowerCase(), password,}),
-              }
-              );
+      // Firebase valida el correo y la contraseña; luego el backend confirma
+      // la sesión con GET /auth/me (y crea el usuario la primera vez).
+      await loginWithEmail(email.trim().toLowerCase(), password);
 
-      // Comprobar que el backend haya devuelto una sesión válida.
-      if (!response?.token || !response?.expiresAt || !response?.user) {
-        throw new Error('El servidor no devolvió una sesión válida.');
-      }
-
-      // Guardar el token y los datos del usuario.
-      await saveSession(response);
-
-      // Continuar hacia el Home únicamente después de guardar la sesión.
+      // Continuar hacia el Home únicamente después de iniciar sesión.
       onLoginSuccess();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al iniciar sesión:', error);
 
-      Alert.alert(
-        'No se pudo iniciar sesión',
-        error?.message || 'Ocurrió un problema al conectar con el servidor.'
-      );
+      Alert.alert('No se pudo iniciar sesión', getAuthErrorMessage(error));
 
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Envía el correo de recuperación de contraseña de Firebase.
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert(
+        'Escribe tu correo',
+        'Ingresa tu correo electrónico arriba y vuelve a tocar "¿Olvidaste tu contraseña?".'
+      );
+      return;
+    }
+
+    try {
+      await sendPasswordReset(email.trim().toLowerCase());
+      Alert.alert(
+        'Revisa tu correo',
+        'Si existe una cuenta con ese correo, te enviamos un enlace para cambiar la contraseña.'
+      );
+    } catch (error: unknown) {
+      Alert.alert('No se pudo enviar el correo', getAuthErrorMessage(error));
     }
   };
 
@@ -170,6 +177,13 @@ const [password, setPassword] = useState('');
             editable={!loading}
           />
 
+          {/* RECUPERAR CONTRASEÑA */}
+          <Pressable onPress={handleForgotPassword} disabled={loading}>
+            <Text style={[styles.link, { alignSelf: 'flex-end' }]}>
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </Pressable>
+
         </View>
 
         {/* BOTÓN INICIAR SESIÓN */}
@@ -194,6 +208,9 @@ const [password, setPassword] = useState('');
             )}
           </LinearGradient>
         </Pressable>
+
+        {/* CONTINUAR CON GOOGLE (requiere development build) */}
+        <GoogleButton onSuccess={onLoginSuccess} disabled={loading} />
 
         {/* REGISTRO */}
         <View style={styles.footer}>

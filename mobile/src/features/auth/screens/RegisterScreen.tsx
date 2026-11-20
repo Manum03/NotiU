@@ -26,16 +26,22 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-// Conexión con el backend y tipo de respuesta de autenticación.
-import { apiRequest } from '../../../services/api/api';
-import { AuthSession } from '../../../services/storage/authStorage';
+// Registro con Firebase Authentication.
+import {
+  getAuthErrorMessage,
+  logout,
+  registerWithEmail,
+} from '../../../services/auth/authService';
+import GoogleButton from '../components/GoogleButton';
 
 type Props = {
   onBack: () => void;
   onLogin: () => void;
+  // Con Google la cuenta queda creada y con sesión: se entra directo al Inicio
+  onGoogleSuccess: () => void;
 };
 
-export default function RegisterScreen({ onBack, onLogin }: Props) {
+export default function RegisterScreen({ onBack, onLogin, onGoogleSuccess }: Props) {
 
   // DATOS DEL FORMULARIO
   const [fullName, setFullName] = useState('');
@@ -96,25 +102,16 @@ export default function RegisterScreen({ onBack, onLogin }: Props) {
     try {
       setLoading(true);
 
-      // Enviar los datos al backend para crear la cuenta.
-      const response = await apiRequest<AuthSession>(
-        '/auth/register',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            name: fullName.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-          }),
-        }
+      // Crear la cuenta en Firebase y registrarla en el backend.
+      await registerWithEmail(
+        fullName.trim(),
+        email.trim().toLowerCase(),
+        password
       );
 
-      // Comprobar que el backend haya creado correctamente la cuenta.
-      if (!response?.user || !response?.token) {
-        throw new Error(
-          'El servidor no confirmó la creación de la cuenta.'
-        );
-      }
+      // Firebase deja la sesión abierta al registrar; se cierra para mantener
+      // el flujo actual: el estudiante inicia sesión después de crear la cuenta.
+      await logout();
 
       // Mostrar confirmación.
       // La sesión no se guarda todavía: iniciaremos sesión después.
@@ -122,14 +119,7 @@ export default function RegisterScreen({ onBack, onLogin }: Props) {
 
     } catch (error: unknown) {
       console.error('Error al registrar usuario:', error);
-
-      Alert.alert(
-        'No se pudo crear la cuenta',
-        error instanceof Error
-          ? error.message
-          : 'Ocurrió un error al comunicarse con el servidor.'
-      );
-
+      Alert.alert('No se pudo crear la cuenta', getAuthErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -291,6 +281,9 @@ export default function RegisterScreen({ onBack, onLogin }: Props) {
             )}
           </LinearGradient>
         </Pressable>
+
+        {/* CONTINUAR CON GOOGLE (requiere development build) */}
+        <GoogleButton onSuccess={onGoogleSuccess} disabled={loading} />
 
         {/* IR A INICIAR SESIÓN */}
         <View style={styles.footer}>
