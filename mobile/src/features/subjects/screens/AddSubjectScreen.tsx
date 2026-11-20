@@ -302,7 +302,10 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
 
   const clockTouchStart = useRef({ x: 130, y: 130 });
 
-  const clockPanResponder = useRef(
+  // useState con inicialización perezosa: crea el PanResponder una sola vez sin leer refs durante el render
+  // Los callbacks leen refs solo durante el gesto, no en el render (falso positivo de la regla)
+  // eslint-disable-next-line react-hooks/refs
+  const [clockPanResponder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
@@ -317,7 +320,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
         updateClockFromTouch(x, y);
       },
     }),
-  ).current;
+  );
 
   const [activityType, setActivityType] = useState<ActivityType | null>(null);
 

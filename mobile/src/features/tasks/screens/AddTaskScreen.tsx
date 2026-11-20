@@ -317,7 +317,10 @@ useEffect(() => { timeModeRef.current = timeMode; }, [timeMode]);
 
   const clockTouchStart = useRef({ x: 130, y: 130 });
 
-  const clockPanResponder = useRef(
+  // useState con inicialización perezosa: crea el PanResponder una sola vez sin leer refs durante el render
+  // Los callbacks leen refs solo durante el gesto, no en el render (falso positivo de la regla)
+  // eslint-disable-next-line react-hooks/refs
+  const [clockPanResponder] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
@@ -340,7 +343,7 @@ useEffect(() => { timeModeRef.current = timeMode; }, [timeMode]);
         updateClockFromTouch(x, y);
       },
     })
-  ).current;
+  );
   const saveTask = async () => {
     if (!title.trim()) {
       Alert.alert('Falta el título', 'Escribe el nombre de la actividad.');
