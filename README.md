@@ -77,6 +77,26 @@ Ya funciona con el backend: registro, inicio de sesión (la sesión queda guarda
 
 Pendiente: inicio de sesión con Google, conexión con Classroom y notificaciones push (requieren *development build*), y las pantallas de Notificaciones y Perfil. Ver `CODEX_TAREAS.md`.
 
+### Development build (push, Google Sign-In y Classroom)
+
+Las notificaciones push y los módulos nativos (Google Sign-In) **no funcionan en Expo Go** (desde el SDK 53 Expo Go no recibe push en Android). Hay que instalar una *development build* una vez; después se sigue trabajando con `npx expo start` como siempre.
+
+1. En Firebase registra también una **app Android** con el paquete `co.edu.notiu` (y una app iOS con el bundle `co.edu.notiu` si se va a compilar para iPhone). Descarga `google-services.json` (y `GoogleService-Info.plist`) y ponlos en `mobile/`. **No se suben a git** (están en `.gitignore`); `mobile/.easignore` permite que EAS sí los lea del disco al compilar.
+2. Para Google Sign-In en Android, agrega a la app Android de Firebase la huella **SHA-1** del certificado de la build (`npx eas-cli@latest credentials` → Android → *Keystore* la muestra) y vuelve a descargar `google-services.json`.
+3. Crea el proyecto de EAS y compila:
+
+   ```bash
+   cd mobile
+   npx eas-cli@latest login
+   npx eas-cli@latest init                      # agrega extra.eas.projectId a app.json (lo usa el push)
+   npx eas-cli@latest build --profile development --platform android
+   ```
+
+4. Instala el APK que entrega EAS en el celular y arranca el servidor de desarrollo con `npx expo start` (la app abre el servidor con el QR o la lista de servidores cercanos).
+5. **Credenciales de push (FCM V1):** Consola de Firebase → *Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada*. Luego `npx eas-cli@latest credentials` → Android → *Google Service Account* → *Manage your Google Service Account Key for Push Notifications (FCM V1)* → *Upload a new service account key*. Ese JSON tampoco se sube a git. Guía: https://docs.expo.dev/push-notifications/fcm-credentials/
+
+Las variables `EXPO_PUBLIC_*` de `mobile/.env` las lee Metro en tu computador, así que sirven para la development build. Para builds `preview` o `production` (sin Metro) hay que crearlas en EAS: `npx eas-cli@latest env:create`.
+
 ---
 
 ## Backend: API REST (`backend/`)
