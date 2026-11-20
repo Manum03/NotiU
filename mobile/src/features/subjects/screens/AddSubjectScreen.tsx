@@ -1,4 +1,4 @@
-﻿
+
 import React, { useEffect, useRef, useState } from 'react';
 import {ActivityIndicator, Alert,KeyboardAvoidingView,Modal, PanResponder, Platform,Pressable, ScrollView,StyleSheet,Switch, Text,TextInput,View,} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,22 +37,6 @@ type SubjectDetail = {
   }[];
 };
 
-const PRIORITY_OPTIONS: {
-  value: SubjectPriority;
-  label: string;
-}[] = [
-  { value: 'alta', label: 'ALTA' },
-  { value: 'media', label: 'MEDIA' },
-  { value: 'baja', label: 'BAJA' },
-  { value: 'sin_fecha', label: 'SIN FECHA' },
-];
-
-const PRIORITY_TONES: Record<SubjectPriority, string> = {
-  alta: '#E0A2B0',
-  media: '#EBB68D',
-  baja: '#B5D3A3',
-  sin_fecha: '#BFA6DB',
-};
 const STATUS_TONES = {
   cursando: {
     accent: '#E47D9B',
@@ -79,29 +63,10 @@ const ACTIVITY_OPTIONS = Object.keys(
 ) as ActivityType[];
 
 const REMINDER_OPTIONS = [
-  { days: 0, label: 'El mismo dÃ­Â­a' },
-  { days: 1, label: 'Un dÃ­Â­a antes' },
-  { days: 2, label: 'Dos dÃ­Â­as antes' },
+  { days: 0, label: 'El mismo día' },
+  { days: 1, label: 'Un día antes' },
+  { days: 2, label: 'Dos días antes' },
 ];
-
-// "20261102" -> "2026-11-02"
-function maskDate(text: string): string {
-  const d = text.replace(/\D/g, '').slice(0, 8);
-
-  if (d.length <= 4) return d;
-  if (d.length <= 6) {
-    return `${d.slice(0, 4)}-${d.slice(4)}`;
-  }
-
-  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
-}
-
-// "2359" -> "23:59"
-function maskTime(text: string): string {
-  const d = text.replace(/\D/g, '').slice(0, 4);
-
-  return d.length <= 2 ? d : `${d.slice(0, 2)}:${d.slice(2)}`;
-}
 
 function isValidDate(value: string): boolean {const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
@@ -358,7 +323,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
 
         const session = await getSession();
 
-        if (!session?.token) { throw new Error('No se encontrÃ³ una sesiÃ³n activa.',);
+        if (!session?.token) { throw new Error('No se encontró una sesión activa.',);
         }
 
         const subject = await apiRequest<SubjectDetail>(`/subjects/${subjectId}`,
@@ -436,7 +401,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
         creditsNumber < 1 ||
         creditsNumber > 10
       ) {
-        return 'Los crÃ©ditos deben ser un nÃºmero entero entre 1 y 10.';
+        return 'Los créditos deben ser un número entero entre 1 y 10.';
       }
     }
 
@@ -448,7 +413,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
         semesterNumber < 1 ||
         semesterNumber > 12
       ) {
-        return 'El semestre debe ser un nÃºmero entero entre 1 y 12.';
+        return 'El semestre debe ser un número entero entre 1 y 12.';
       }
     }
     if (dueDate && !isValidDate(dueDate)) {
@@ -456,11 +421,11 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
     }
 
     if (dueTime && !dueDate) {
-      return 'Para poner una hora lÃ­Â­mite primero indica la fecha de entrega.';
+      return 'Para poner una hora límite primero indica la fecha de entrega.';
     }
 
     if (dueTime && !isValidTime(dueTime)) {
-      return 'La hora lÃ­mite debe tener el formato HH:MM en 24 horas, por ejemplo 23:59.';
+      return 'La hora límite debe tener el formato HH:MM en 24 horas, por ejemplo 23:59.';
     }
 
     if (reminderEnabled && !dueDate) {
@@ -505,7 +470,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
 
       if (!session?.token) {
         throw new Error(
-          'No se encontrÃ³ una sesiÃ³n activa.',
+          'No se encontró una sesión activa.',
         );
       }
 
@@ -606,7 +571,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
 
           <TextInput
             style={styles.teacherInput}
-            placeholder="Docente o Ã¡rea"
+            placeholder="Docente o área"
             placeholderTextColor={COLORS.soft}
             value={teacher}
             onChangeText={setTeacher}
@@ -803,7 +768,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
         </Pressable>
 
         <Text style={[styles.label, { color: statusTheme.accent, marginTop: 14 }]}>
-          HORA LÃMITE
+          HORA LÍMITE
         </Text>
 
         <Pressable
@@ -819,7 +784,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
           ]}
           onPress={openTimePicker}
           accessibilityRole="button"
-          accessibilityLabel="Seleccionar hora lÃ­mite"
+          accessibilityLabel="Seleccionar hora límite"
         >
           <Text
             style={{
@@ -1039,7 +1004,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
                   FECHA DE ENTREGA
                 </Text>
                 <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: '900', marginTop: 4 }}>
-                  Elige un dÃ­a
+                  Elige un día
                 </Text>
               </View>
 
@@ -1208,7 +1173,7 @@ export default function AddSubjectScreen({navigation, route,}: Props) {const [na
             <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
                 <Text style={{ color: statusTheme.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>
-                  HORA LÃMITE
+                  HORA LÍMITE
                 </Text>
                 <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: '900', marginTop: 4 }}>
                   Elige la hora

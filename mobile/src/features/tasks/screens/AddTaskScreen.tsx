@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -128,7 +128,6 @@ useEffect(() => { timeModeRef.current = timeMode; }, [timeMode]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loadingTask, setLoadingTask] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -166,7 +165,6 @@ useEffect(() => { timeModeRef.current = timeMode; }, [timeMode]);
 
     async function loadTask() {
       try {
-        setLoadingTask(true);
 
         const session = await getSession();
 
@@ -215,8 +213,6 @@ useEffect(() => { timeModeRef.current = timeMode; }, [timeMode]);
             error instanceof Error ? error.message : 'Inténtalo de nuevo.'
           );
         }
-      } finally {
-        if (active) setLoadingTask(false);
       }
     }
 

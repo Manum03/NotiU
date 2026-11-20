@@ -1,4 +1,3 @@
-import { FONTS } from '../../../core/theme/fonts';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,7 +9,6 @@ import { getSession } from '../../../services/storage/authStorage';
 import {
   ACTIVITY_LABEL,
   COLORS,
-  PRIORITY_COLOR,
   PRIORITY_LABEL,
   STATUS_COLOR,
   STATUS_LABEL,
@@ -33,7 +31,7 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
       try {
         const session = await getSession();
         if (!session?.token) {
-          throw new Error('No se encontrÃ³ una sesiÃ³n activa.');
+          throw new Error('No se encontró una sesión activa.');
         }
 
         const updatedSubject = await apiRequest<typeof subject>(
@@ -71,7 +69,7 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
 
       const session = await getSession();
       if (!session?.token) {
-        throw new Error('No se encontrÃ³ una sesiÃ³n activa.');
+        throw new Error('No se encontró una sesión activa.');
       }
 
       await apiRequest<unknown>(`/subjects/${subject.id}`, {
@@ -93,7 +91,7 @@ export default function SubjectDetailScreen({ navigation, route }: Props) {
   const confirmDelete = () => {
     Alert.alert(
       'Eliminar materia',
-      `Â¿EstÃ¡s seguro de que deseas eliminar "${subject.name}"?`,
+      `¿Estás seguro de que deseas eliminar "${subject.name}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Eliminar', style: 'destructive', onPress: deleteSubject },
@@ -123,7 +121,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
     try {
       setSaving(true);
       const session = await getSession();
-      if (!session?.token) throw new Error('No se encontrÃ³ una sesiÃ³n activa.');
+      if (!session?.token) throw new Error('No se encontró una sesión activa.');
 
       await apiRequest<unknown>(`/subjects/${subject.id}`, {
         method: 'PATCH',
@@ -140,7 +138,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
   };
 
   const confirmComplete = () =>
-    Alert.alert('Completar materia', `Â¿Marcar "${subject.name}" como finalizada?`, [
+    Alert.alert('Completar materia', `¿Marcar "${subject.name}" como finalizada?`, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Completar', onPress: completeSubject },
     ]);
@@ -186,7 +184,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
             DESCRIPCIÃ“N
           </Text>
           <Text style={styles.body}>
-            {subject.description || 'Sin descripciÃ³n.'}
+            {subject.description || 'Sin descripción.'}
           </Text>
         </View>
 
@@ -201,7 +199,7 @@ const priorityColor = PRIORITY_TONES[subject.priority];
         <View style={styles.infoRow}>
           <Lucide name="clock" size={18} color={statusTheme.accent} />
           <View>
-            <Text style={styles.infoLabel}>HORA LÃMITE</Text>
+            <Text style={styles.infoLabel}>HORA LÍMITE</Text>
             <Text style={styles.infoValue}>{formatTime(subject.dueTime)}</Text>
           </View>
         </View>
