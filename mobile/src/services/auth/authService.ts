@@ -14,6 +14,7 @@ import {
 
 import { auth } from '../../config/firebase';
 import { apiRequest } from '../api/api';
+import { unregisterPushToken } from '../notifications/pushService';
 import { getGoogleErrorMessage, loadGoogleSignIn, signOutFromGoogle } from './googleSignIn';
 
 // Usuario que devuelve el backend en GET /auth/me
@@ -115,6 +116,10 @@ export async function sendPasswordReset(email: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
+  // Primero DELETE /devices (necesita la sesión abierta); si falla igual se cierra la sesión
+  await unregisterPushToken().catch((error) =>
+    console.warn('No se pudo borrar el token push del dispositivo:', error)
+  );
   await signOutFromGoogle();
   await signOut(auth);
 }

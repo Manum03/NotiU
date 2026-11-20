@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import WelcomeScreen from '../features/auth/screens/WelcomeScreen';
@@ -16,6 +17,10 @@ import ConnectMoodleScreen from '../features/integrations/screens/ConnectMoodleS
 import type { Subject } from '../features/subjects/types';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { navigationRef } from './navigationRef';
+import {
+  openFromNotification,
+  registerForPushNotifications,
+} from '../services/notifications/pushService';
 
 export type RootStackParamList = {
   Tasks: undefined;
@@ -52,6 +57,29 @@ export default function AppNavigator() {
     }
   }, [user, initializing]);
 
+  // Con sesión: pide permiso de notificaciones (solo la primera vez) y registra el
+  // dispositivo en el backend para recibir push
+  useEffect(() => {
+    if (!user) return;
+    registerForPushNotifications()
+      .then((result) => {
+        if (result.status === 'unavailable') console.info('[push]', result.reason);
+      })
+      .catch((error) => console.warn('[push] No se pudo registrar el dispositivo:', error));
+  }, [user]);
+
+  // Toque en una notificación (con la app abierta, en segundo plano o cerrada).
+  // Se espera a que la navegación esté lista y haya sesión antes de abrir la pantalla.
+  const [navigationReady, setNavigationReady] = useState(false);
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
+
+  useEffect(() => {
+    if (!lastNotificationResponse || !navigationReady || !user) return;
+    openFromNotification(lastNotificationResponse);
+    // Se limpia para no volver a abrirla al re-renderizar
+    Notifications.clearLastNotificationResponseAsync().catch(() => {});
+  }, [lastNotificationResponse, navigationReady, user]);
+
   if (initializing) {
     return (
       <View style={{ flex: 1, backgroundColor: '#10060A', justifyContent: 'center' }}>
@@ -61,7 +89,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)}>
       <Stack.Navigator
         // Solo se lee al montar: con sesión guardada se entra directo al Home
         initialRouteName={user ? 'Home' : 'Welcome'}
