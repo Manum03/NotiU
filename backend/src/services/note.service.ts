@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { db } from "../config/firebase";
 import {
   CreateNoteDto,
   CreateNoteResponseDto,
@@ -11,12 +12,28 @@ import {
 } from "../models/note.dto";
 import { Note } from "../models/note.model";
 import { HttpError } from "../utils/http-error";
+import { toDateOrNow } from "../utils/firestore";
 import { fold } from "../utils/text";
 import { subjectService } from "./subject.service";
 
-// ---- Almacenamiento en memoria (no hay base de datos) ----
-// Los datos se pierden al reiniciar el servidor
-const notes: Note[] = [];
+// Apuntes en Firestore: colección `notes/{noteId}` con el campo `userId`.
+// Van en una colección general (y no dentro de users/{uid}) para poder distinguir
+// "no existe" (404) de "es de otro estudiante" (403), como antes.
+const notesCol = db.collection("notes");
+
+const fromDoc = (id: string, d: FirebaseFirestore.DocumentData): Note => ({
+  id,
+  userId: String(d.userId ?? ""),
+  title: String(d.title ?? ""),
+  content: String(d.content ?? ""),
+  subjectId: d.subjectId ?? null,
+  tags: Array.isArray(d.tags) ? d.tags : [],
+  isPinned: d.isPinned === true,
+  createdAt: toDateOrNow(d.createdAt),
+  updatedAt: toDateOrNow(d.updatedAt),
+});
+
+const toDoc = ({ id: _id, ...rest }: Note) => rest;
 
 const toNoteListItem = (n: Note): NoteListItemDto => ({
   id: n.id,
@@ -32,20 +49,23 @@ const toNoteListItem = (n: Note): NoteListItemDto => ({
  * Busca un apunte y comprueba que sea del usuario.
  * 404 si no existe; 403 si existe pero es de otro estudiante (regla del inventario).
  */
-const getOwnedNote = (userId: number, noteId: string): Note => {
-  const note = notes.find((n) => n.id === noteId);
-  if (!note) throw new HttpError(404, "Apunte no encontrado");
+const getOwnedNote = async (userId: string, noteId: string): Promise<Note> => {
+  const snap = await notesCol.doc(noteId).get();
+  if (!snap.exists) throw new HttpError(404, "Apunte no encontrado");
+  const note = fromDoc(snap.id, snap.data() ?? {});
   if (note.userId !== userId) throw new HttpError(403, "No tienes permisos sobre este apunte");
   return note;
 };
 
 export const noteService = {
-  listNotes(userId: number, filters: ListNotesFilters): ListNotesResponseDto {
+  async listNotes(userId: string, filters: ListNotesFilters): Promise<ListNotesResponseDto> {
     const term = filters.search ? fold(filters.search) : undefined;
     const tag = filters.tag ? fold(filters.tag) : undefined;
 
-    const filtered = notes
-      .filter((n) => n.userId === userId) // PRIMERO: solo los apuntes del usuario
+    // PRIMERO: solo los apuntes del usuario (consulta de un campo); el resto se filtra en memoria
+    const snap = await notesCol.where("userId", "==", userId).get();
+    const filtered = snap.docs
+      .map((doc) => fromDoc(doc.id, doc.data()))
       .filter((n) => filters.subjectId === undefined || n.subjectId === filters.subjectId)
       .filter((n) => tag === undefined || n.tags.some((t) => fold(t) === tag))
       .filter((n) => term === undefined || fold(n.title).includes(term) || fold(n.content).includes(term))
@@ -69,9 +89,9 @@ export const noteService = {
     };
   },
 
-  createNote(userId: number, dto: CreateNoteDto): CreateNoteResponseDto {
+  async createNote(userId: string, dto: CreateNoteDto): Promise<CreateNoteResponseDto> {
     // Si se envía materia, debe existir y ser del usuario (404 si no)
-    if (dto.subjectId !== undefined) subjectService.getOwnedSubject(userId, dto.subjectId);
+    if (dto.subjectId !== undefined) await subjectService.getOwnedSubject(userId, dto.subjectId);
 
     const now = new Date();
     const note: Note = {
@@ -85,7 +105,7 @@ export const noteService = {
       createdAt: now,
       updatedAt: now,
     };
-    notes.push(note);
+    await notesCol.doc(note.id).set(toDoc(note));
 
     return {
       message: "Apunte creado",
@@ -100,11 +120,11 @@ export const noteService = {
     };
   },
 
-  updateNote(userId: number, noteId: string, dto: UpdateNoteDto): UpdateNoteResponseDto {
-    const note = getOwnedNote(userId, noteId); // 404 / 403
+  async updateNote(userId: string, noteId: string, dto: UpdateNoteDto): Promise<UpdateNoteResponseDto> {
+    const note = await getOwnedNote(userId, noteId); // 404 / 403
 
     // Lo que puede fallar va primero: así el apunte no queda a medio actualizar
-    if (dto.subjectId) subjectService.getOwnedSubject(userId, dto.subjectId);
+    if (dto.subjectId) await subjectService.getOwnedSubject(userId, dto.subjectId);
 
     if (dto.title !== undefined) note.title = dto.title;
     if (dto.content !== undefined) note.content = dto.content;
@@ -112,6 +132,7 @@ export const noteService = {
     if (dto.tags !== undefined) note.tags = dto.tags;
     if (dto.isPinned !== undefined) note.isPinned = dto.isPinned;
     note.updatedAt = new Date();
+    await notesCol.doc(note.id).set(toDoc(note));
 
     return {
       message: "Apunte actualizado",
@@ -119,16 +140,17 @@ export const noteService = {
     };
   },
 
-  deleteNote(userId: number, noteId: string): DeleteNoteResponseDto {
-    const note = getOwnedNote(userId, noteId); // 404 / 403
-    notes.splice(notes.indexOf(note), 1);
+  async deleteNote(userId: string, noteId: string): Promise<DeleteNoteResponseDto> {
+    const note = await getOwnedNote(userId, noteId); // 404 / 403
+    await notesCol.doc(note.id).delete();
     return { message: "Apunte eliminado", deletedId: note.id };
   },
 
-  // La usa DELETE /api/subjects/:subjectId: los apuntes se conservan sin materia
-  detachSubject(subjectId: string): void {
-    for (const note of notes) {
-      if (note.subjectId === subjectId) note.subjectId = null;
-    }
+  // La usa DELETE /api/subjects/:subjectId: los apuntes se conservan sin materia.
+  // Devuelve las referencias para quitarles la materia dentro del mismo batch.
+  async refsBySubject(userId: string, subjectId: string): Promise<FirebaseFirestore.DocumentReference[]> {
+    const snap = await notesCol.where("subjectId", "==", subjectId).get();
+    // Los ids de materia son UUID únicos; igual se comprueba el dueño por seguridad
+    return snap.docs.filter((doc) => doc.data().userId === userId).map((doc) => doc.ref);
   },
 };

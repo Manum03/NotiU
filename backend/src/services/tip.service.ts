@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { db } from "../config/firebase";
 import {
   ListTipsFilters,
   ListTipsResponseDto,
@@ -6,31 +7,82 @@ import {
   SaveTipResponseDto,
   TipDetailDto,
 } from "../models/tip.dto";
-import { SavedTip, Tip } from "../models/tip.model";
+import { Tip } from "../models/tip.model";
 import { HttpError } from "../utils/http-error";
+import { toDateOrNow } from "../utils/firestore";
 import { fold } from "../utils/text";
 
-// ---- Almacenamiento en memoria (no hay base de datos) ----
-// Los datos se pierden al reiniciar el servidor
-const tips: Tip[] = [];
-const savedTips: SavedTip[] = [];
+// Tips en Firestore:
+// - Catálogo compartido en `tips/{tipId}` (se llena con la semilla si la colección está vacía).
+// - Guardados de cada estudiante en `users/{uid}/savedTips/{tipId}` ({ savedAt }).
+const tipsCol = db.collection("tips");
+const savedCol = (userId: string) => db.collection("users").doc(userId).collection("savedTips");
 
-const isSaved = (userId: number, tipId: string): boolean =>
-  savedTips.some((s) => s.userId === userId && s.tipId === tipId);
+const fromDoc = (id: string, d: FirebaseFirestore.DocumentData): Tip => ({
+  id,
+  title: String(d.title ?? ""),
+  summary: String(d.summary ?? ""),
+  content: String(d.content ?? ""),
+  category: String(d.category ?? ""),
+  author: String(d.author ?? ""),
+  tags: Array.isArray(d.tags) ? d.tags : [],
+  readingTimeMin: Number(d.readingTimeMin ?? 0),
+  resources: Array.isArray(d.resources) ? d.resources : [],
+  createdAt: toDateOrNow(d.createdAt),
+});
 
-const findTip = (tipId: string, notFoundMessage = "Tip no encontrado"): Tip => {
-  const tip = tips.find((t) => t.id === tipId);
-  if (!tip) throw new HttpError(404, notFoundMessage);
-  return tip;
+// La semilla se escribe una sola vez por proceso (y solo si la colección está vacía)
+let catalogReady: Promise<void> | null = null;
+
+const ensureCatalog = (): Promise<void> => {
+  catalogReady ??= (async () => {
+    const existing = await tipsCol.limit(1).get();
+    if (!existing.empty) return;
+    const batch = db.batch();
+    for (const [data, agoDays] of SEED) {
+      batch.set(tipsCol.doc(randomUUID()), { ...data, createdAt: daysAgo(agoDays) });
+    }
+    await batch.commit();
+  })().catch((err: unknown) => {
+    catalogReady = null; // se reintenta en la próxima petición
+    throw err;
+  });
+  return catalogReady;
 };
 
+const loadTips = async (): Promise<Tip[]> => {
+  await ensureCatalog();
+  const snap = await tipsCol.get();
+  return snap.docs.map((doc) => fromDoc(doc.id, doc.data()));
+};
+
+const loadSavedIds = async (userId: string): Promise<Set<string>> => {
+  const snap = await savedCol(userId).get();
+  return new Set(snap.docs.map((doc) => doc.id));
+};
+
+const findTip = async (tipId: string, notFoundMessage = "Tip no encontrado"): Promise<Tip> => {
+  await ensureCatalog();
+  const snap = await tipsCol.doc(tipId).get();
+  if (!snap.exists) throw new HttpError(404, notFoundMessage);
+  return fromDoc(snap.id, snap.data() ?? {});
+};
+
+const isSaved = async (userId: string, tipId: string): Promise<boolean> =>
+  (await savedCol(userId).doc(tipId).get()).exists;
+
 export const tipService = {
-  listTips(userId: number, filters: ListTipsFilters): ListTipsResponseDto {
+  // Se llama al arrancar el servidor para sembrar el catálogo si está vacío
+  ensureCatalog,
+
+  async listTips(userId: string, filters: ListTipsFilters): Promise<ListTipsResponseDto> {
     const tag = filters.tag ? fold(filters.tag) : undefined;
     const term = filters.search ? fold(filters.search) : undefined;
 
+    const [tips, savedIds] = await Promise.all([loadTips(), loadSavedIds(userId)]);
+
     const filtered = tips
-      .filter((t) => !filters.savedOnly || isSaved(userId, t.id))
+      .filter((t) => !filters.savedOnly || savedIds.has(t.id))
       .filter((t) => tag === undefined || t.tags.some((x) => fold(x) === tag))
       .filter(
         (t) =>
@@ -51,14 +103,14 @@ export const tipService = {
         category: t.category,
         tags: [...t.tags],
         readingTimeMin: t.readingTimeMin,
-        isSaved: isSaved(userId, t.id),
+        isSaved: savedIds.has(t.id),
       })),
       total: filtered.length,
     };
   },
 
-  getTip(userId: number, tipId: string): TipDetailDto {
-    const tip = findTip(tipId);
+  async getTip(userId: string, tipId: string): Promise<TipDetailDto> {
+    const [tip, saved] = await Promise.all([findTip(tipId), isSaved(userId, tipId)]);
     return {
       id: tip.id,
       title: tip.title,
@@ -66,15 +118,15 @@ export const tipService = {
       author: tip.author,
       tags: [...tip.tags],
       resources: [...tip.resources],
-      isSaved: isSaved(userId, tip.id),
+      isSaved: saved,
       createdAt: tip.createdAt.toISOString(),
     };
   },
 
-  listTags(): ListTipTagsResponseDto {
+  async listTags(): Promise<ListTipTagsResponseDto> {
     // Conteo de tips por etiqueta (sin distinguir mayúsculas ni acentos)
     const counts = new Map<string, { name: string; count: number }>();
-    for (const tip of tips) {
+    for (const tip of await loadTips()) {
       for (const tag of tip.tags) {
         const key = fold(tag);
         const entry = counts.get(key) ?? { name: tag, count: 0 };
@@ -88,29 +140,31 @@ export const tipService = {
     return { tags };
   },
 
-  saveTip(userId: number, tipId: string): SaveTipResponseDto {
-    findTip(tipId, "Tip no existe");
-    if (isSaved(userId, tipId)) throw new HttpError(409, "El tip ya estaba guardado");
+  async saveTip(userId: string, tipId: string): Promise<SaveTipResponseDto> {
+    await findTip(tipId, "Tip no existe");
+    if (await isSaved(userId, tipId)) throw new HttpError(409, "El tip ya estaba guardado");
 
-    savedTips.push({ userId, tipId, savedAt: new Date() });
+    await savedCol(userId).doc(tipId).set({ savedAt: new Date() });
     return { message: "Tip guardado en favoritos", tipId, isSaved: true };
   },
 
-  unsaveTip(userId: number, tipId: string): SaveTipResponseDto {
-    findTip(tipId);
-    const index = savedTips.findIndex((s) => s.userId === userId && s.tipId === tipId);
-    if (index === -1) throw new HttpError(404, "El tip no estaba en tus guardados");
+  async unsaveTip(userId: string, tipId: string): Promise<SaveTipResponseDto> {
+    await findTip(tipId);
+    if (!(await isSaved(userId, tipId))) throw new HttpError(404, "El tip no estaba en tus guardados");
 
-    savedTips.splice(index, 1);
+    await savedCol(userId).doc(tipId).delete();
     return { message: "Tip eliminado de favoritos", tipId, isSaved: false };
   },
 };
 
-// ---- Catálogo inicial de tips. Temporal, hasta tener un panel para administrarlos ----
+// ---- Catálogo inicial de tips (semilla). Se guarda en Firestore la primera vez ----
+// Temporal, hasta tener un panel para administrarlos.
 const daysAgo = (d: number): Date => new Date(Date.now() - d * 86_400_000);
 
+const SEED: [Omit<Tip, "id" | "createdAt">, number][] = [];
+
 const seed = (data: Omit<Tip, "id" | "createdAt">, agoDays: number): void => {
-  tips.push({ id: randomUUID(), createdAt: daysAgo(agoDays), ...data });
+  SEED.push([data, agoDays]);
 };
 
 seed(

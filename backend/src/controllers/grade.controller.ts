@@ -21,57 +21,57 @@ import {
 } from "../utils/validators";
 
 export const gradeController = {
-  create(req: Request, res: Response<CreateGradeResponseDto>): void {
+  async create(req: Request, res: Response<CreateGradeResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
     const dto = validateCreateGrade(req.body); // 400 si el body es inválido
     // 404 si la materia no existe o no es del usuario (el mismo error en ambos casos)
-    const subject = subjectService.getOwnedSubject(session.userId, subjectId);
-    res.status(201).json(gradeService.createGrade(subject, dto));
+    const subject = await subjectService.getOwnedSubject(session.userId, subjectId);
+    res.status(201).json(await gradeService.createGrade(subject, dto));
   },
 
-  listBySubject(req: Request, res: Response<SubjectGradesResponseDto>): void {
+  async listBySubject(req: Request, res: Response<SubjectGradesResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
-    const subject = subjectService.getOwnedSubject(session.userId, subjectId); // 404
-    res.status(200).json(gradeService.listBySubject(subject));
+    const subject = await subjectService.getOwnedSubject(session.userId, subjectId); // 404
+    res.status(200).json(await gradeService.listBySubject(subject));
   },
 
-  list(req: Request, res: Response<ListGradesResponseDto>): void {
+  async list(req: Request, res: Response<ListGradesResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const filters = validateListGradesQuery(req.query); // 400 si los filtros son inválidos
     // Solo las materias del usuario: de ahí sale el aislamiento del consolidado
-    const subjects = subjectService.getOwnedSubjects(session.userId);
-    res.status(200).json(gradeService.listByUser(subjects, filters));
+    const subjects = await subjectService.getOwnedSubjects(session.userId);
+    res.status(200).json(await gradeService.listByUser(session.userId, subjects, filters));
   },
 
-  getProgress(req: Request, res: Response<SubjectProgressDto>): void {
+  async getProgress(req: Request, res: Response<SubjectProgressDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
-    const subject = subjectService.getOwnedSubject(session.userId, subjectId); // 404
-    res.status(200).json(gradeService.getProgress(subject));
+    const subject = await subjectService.getOwnedSubject(session.userId, subjectId); // 404
+    res.status(200).json(await gradeService.getProgress(subject));
   },
 
-  update(req: Request, res: Response<UpdateGradeResponseDto>): void {
+  async update(req: Request, res: Response<UpdateGradeResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const gradeId = validateGradeId(req.params.gradeId); // 400 si el ID no es UUID
     const dto = validateUpdateGrade(req.body); // 400 si el body es inválido
     // El service comprueba que la nota pertenezca a una de SUS materias (404 si no)
-    const subjects = subjectService.getOwnedSubjects(session.userId);
-    res.status(200).json(gradeService.updateGrade(subjects, gradeId, dto));
+    const subjects = await subjectService.getOwnedSubjects(session.userId);
+    res.status(200).json(await gradeService.updateGrade(session.userId, subjects, gradeId, dto));
   },
 
-  remove(req: Request, res: Response<DeleteGradeResponseDto>): void {
+  async remove(req: Request, res: Response<DeleteGradeResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const gradeId = validateGradeId(req.params.gradeId); // 400 si el ID no es UUID
-    const subjects = subjectService.getOwnedSubjects(session.userId);
-    res.status(200).json(gradeService.deleteGrade(subjects, gradeId));
+    const subjects = await subjectService.getOwnedSubjects(session.userId);
+    res.status(200).json(await gradeService.deleteGrade(session.userId, subjects, gradeId));
   },
 
-  average(req: Request, res: Response<GradesAverageResponseDto>): void {
+  async average(req: Request, res: Response<GradesAverageResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const filters = validateAverageQuery(req.query); // 400 si semester es inválido
-    const subjects = subjectService.getOwnedSubjects(session.userId);
-    res.status(200).json(gradeService.getAverage(subjects, filters));
+    const subjects = await subjectService.getOwnedSubjects(session.userId);
+    res.status(200).json(await gradeService.getAverage(session.userId, subjects, filters));
   },
 };

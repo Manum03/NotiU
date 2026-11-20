@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { db } from "../config/firebase";
 import {
   CreateGradeDto,
   CreateGradeResponseDto,
@@ -21,10 +22,35 @@ import { GradesSummaryDto } from "../models/subject.dto";
 import { Subject } from "../models/subject.model";
 import { HttpError } from "../utils/http-error";
 
-// ---- Almacenamiento en memoria (no hay base de datos) ----
-// Los datos se pierden al reiniciar el servidor.
-// Es "let" porque al borrar una materia se reemplaza por la lista sin sus notas
-let grades: Grade[] = [];
+// Notas (calificaciones) en Firestore: `users/{uid}/grades/{gradeId}` con el campo
+// `subjectId`. Solo se consulta por un campo para no necesitar índices compuestos.
+const gradesCol = (userId: string) => db.collection("users").doc(userId).collection("grades");
+
+const fromDoc = (id: string, d: FirebaseFirestore.DocumentData): Grade => ({
+  id,
+  subjectId: String(d.subjectId ?? ""),
+  title: String(d.title ?? ""),
+  score: Number(d.score ?? 0),
+  weight: Number(d.weight ?? 0),
+  ...(d.corte ? { corte: d.corte } : {}),
+  date: String(d.date ?? ""),
+  createdAt: String(d.createdAt ?? ""),
+});
+
+const toDoc = ({ id: _id, ...rest }: Grade) => rest;
+
+// Todas las notas del usuario o solo las de una materia
+const loadGrades = async (userId: string, subjectId?: string): Promise<Grade[]> => {
+  const query = subjectId ? gradesCol(userId).where("subjectId", "==", subjectId) : gradesCol(userId);
+  const snap = await query.get();
+  return snap.docs.map((doc) => fromDoc(doc.id, doc.data()));
+};
+
+const groupBySubject = (grades: Grade[]): Map<string, Grade[]> => {
+  const map = new Map<string, Grade[]>();
+  for (const g of grades) map.set(g.subjectId, [...(map.get(g.subjectId) ?? []), g]);
+  return map;
+};
 
 // Los porcentajes y las notas se calculan en centésimas (enteros) para evitar
 // errores de decimales: 33.3 + 33.3 + 33.4 debe dar exactamente 100
@@ -41,8 +67,6 @@ const todayLocal = (): string => {
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;
 };
-
-const gradesOf = (subjectId: string): Grade[] => grades.filter((g) => g.subjectId === subjectId);
 
 // Copia de la nota sin subjectId (ya va en la raíz de la respuesta)
 const toGradeItem = ({ subjectId, ...rest }: Grade): GradeItemDto => ({ ...rest });
@@ -121,8 +145,10 @@ const buildProgress = (subjectId: string, subjectGrades: Grade[]): SubjectProgre
  * materia es de otro usuario, el resultado es el MISMO 404: así nadie puede
  * descubrir qué IDs existen (defensa contra IDOR)
  */
-const findOwnedGrade = (ownedSubjects: Subject[], gradeId: string): Grade => {
-  const grade = grades.find((g) => g.id === gradeId);
+const findOwnedGrade = async (userId: string, ownedSubjects: Subject[], gradeId: string): Promise<Grade> => {
+  // Está en la subcolección del usuario: la nota de otro estudiante no se encuentra
+  const snap = await gradesCol(userId).doc(gradeId).get();
+  const grade = snap.exists ? fromDoc(snap.id, snap.data() ?? {}) : null;
   if (!grade || !ownedSubjects.some((s) => s.id === grade.subjectId)) {
     throw new HttpError(404, "Calificación no encontrada");
   }
@@ -130,10 +156,13 @@ const findOwnedGrade = (ownedSubjects: Subject[], gradeId: string): Grade => {
 };
 
 // Este service NO importa a subject.service (evita un import circular):
-// recibe la materia ya validada, y el controller se encarga de comprobar la propiedad
+// recibe la materia ya validada (trae su userId), y el controller comprueba la propiedad
 export const gradeService = {
-  createGrade(subject: Subject, dto: CreateGradeDto): CreateGradeResponseDto {
-    const usedHundredths = gradesOf(subject.id).reduce((sum, g) => sum + toHundredths(g.weight), 0);
+  async createGrade(subject: Subject, dto: CreateGradeDto): Promise<CreateGradeResponseDto> {
+    const usedHundredths = (await loadGrades(subject.userId, subject.id)).reduce(
+      (sum, g) => sum + toHundredths(g.weight),
+      0,
+    );
 
     if (usedHundredths + toHundredths(dto.weight) > TOTAL_HUNDREDTHS) {
       const available = (TOTAL_HUNDREDTHS - usedHundredths) / 100;
@@ -152,18 +181,35 @@ export const gradeService = {
       date: dto.date ?? todayLocal(),
       createdAt: new Date().toISOString(),
     };
-    grades.push(grade);
+    await gradesCol(subject.userId).doc(grade.id).set(toDoc(grade));
 
     return { message: "Calificación registrada", grade: { ...grade } };
   },
 
-  // Resumen de las notas de una materia (cantidad, % evaluado y promedio ponderado)
-  getSummary(subjectId: string): GradesSummaryDto {
-    return summarize(gradesOf(subjectId));
+  // Resumen vacío (materia sin notas)
+  emptySummary(): GradesSummaryDto {
+    return summarize([]);
   },
 
-  listBySubject(subject: Subject): SubjectGradesResponseDto {
-    const subjectGrades = gradesOf(subject.id);
+  // Resumen de las notas de una materia (cantidad, % evaluado y promedio ponderado)
+  async getSummary(userId: string, subjectId: string): Promise<GradesSummaryDto> {
+    return summarize(await loadGrades(userId, subjectId));
+  },
+
+  // Resumen de TODAS las materias del usuario con una sola consulta (lista de materias)
+  async getSummariesByUser(userId: string): Promise<Map<string, GradesSummaryDto>> {
+    const bySubject = groupBySubject(await loadGrades(userId));
+    return new Map([...bySubject].map(([subjectId, list]) => [subjectId, summarize(list)]));
+  },
+
+  // Referencias de las notas de una materia (para el borrado en cascada con batch)
+  async refsBySubject(userId: string, subjectId: string): Promise<FirebaseFirestore.DocumentReference[]> {
+    const snap = await gradesCol(userId).where("subjectId", "==", subjectId).get();
+    return snap.docs.map((doc) => doc.ref);
+  },
+
+  async listBySubject(subject: Subject): Promise<SubjectGradesResponseDto> {
+    const subjectGrades = await loadGrades(subject.userId, subject.id);
     const { totalWeight, weightedAverage } = summarize(subjectGrades);
 
     // Cronológico; si coincide la fecha, por hora de creación. [...] evita alterar el original
@@ -176,11 +222,11 @@ export const gradeService = {
 
   // Consolidado de todas las notas del usuario. Recibe SUS materias (el controller las
   // obtiene): una nota solo se incluye si su materia está en esa lista
-  listByUser(subjects: Subject[], filters: ListGradesFilters): ListGradesResponseDto {
+  async listByUser(userId: string, subjects: Subject[], filters: ListGradesFilters): Promise<ListGradesResponseDto> {
     const subjectById = new Map(subjects.map((s) => [s.id, s]));
     const data: GradeListItemDto[] = [];
 
-    for (const g of grades) {
+    for (const g of await loadGrades(userId)) {
       const subject = subjectById.get(g.subjectId);
       if (!subject) continue; // PRIMERO: la nota debe ser de una materia del usuario
       if (filters.semester !== undefined && subject.semester !== filters.semester) continue;
@@ -209,25 +255,22 @@ export const gradeService = {
     return { data };
   },
 
-  getProgress(subject: Subject): SubjectProgressDto {
-    return buildProgress(subject.id, gradesOf(subject.id));
-  },
-
-  // Borrado en cascada: elimina todas las notas de una materia y devuelve cuántas fueron.
-  // La materia ya viene validada (propiedad comprobada) por quien llama
-  deleteBySubject(subjectId: string): number {
-    const before = grades.length;
-    grades = grades.filter((g) => g.subjectId !== subjectId);
-    return before - grades.length;
+  async getProgress(subject: Subject): Promise<SubjectProgressDto> {
+    return buildProgress(subject.id, await loadGrades(subject.userId, subject.id));
   },
 
   // Recibe SUS materias (el controller las obtiene) para comprobar la propiedad de la nota
-  updateGrade(ownedSubjects: Subject[], gradeId: string, dto: UpdateGradeDto): UpdateGradeResponseDto {
-    const grade = findOwnedGrade(ownedSubjects, gradeId); // 404 si no existe o no es suya
+  async updateGrade(
+    userId: string,
+    ownedSubjects: Subject[],
+    gradeId: string,
+    dto: UpdateGradeDto,
+  ): Promise<UpdateGradeResponseDto> {
+    const grade = await findOwnedGrade(userId, ownedSubjects, gradeId); // 404 si no existe o no es suya
 
     if (dto.weight !== undefined) {
       // Porcentaje que ocupan las OTRAS notas de la materia (se excluye la que se edita)
-      const othersHundredths = gradesOf(grade.subjectId)
+      const othersHundredths = (await loadGrades(userId, grade.subjectId))
         .filter((g) => g.id !== grade.id)
         .reduce((sum, g) => sum + toHundredths(g.weight), 0);
 
@@ -249,26 +292,34 @@ export const gradeService = {
     }
     if (dto.date !== undefined) grade.date = dto.date;
 
+    // set (sin merge) reemplaza el documento: así también desaparece el corte borrado
+    await gradesCol(userId).doc(grade.id).set(toDoc(grade));
+
     return { message: "Calificación actualizada", grade: { ...grade } };
   },
 
-  deleteGrade(ownedSubjects: Subject[], gradeId: string): DeleteGradeResponseDto {
-    const grade = findOwnedGrade(ownedSubjects, gradeId); // 404 si no existe o no es suya
+  async deleteGrade(userId: string, ownedSubjects: Subject[], gradeId: string): Promise<DeleteGradeResponseDto> {
+    const grade = await findOwnedGrade(userId, ownedSubjects, gradeId); // 404 si no existe o no es suya
 
-    grades = grades.filter((g) => g.id !== grade.id);
+    await gradesCol(userId).doc(grade.id).delete();
 
     return {
       message: "Calificación eliminada correctamente",
       deletedId: grade.id,
       subjectId: grade.subjectId,
       // El promedio se calcula al consultar, así que ya refleja el borrado
-      gradesSummary: summarize(gradesOf(grade.subjectId)),
+      gradesSummary: summarize(await loadGrades(userId, grade.subjectId)),
     };
   },
 
   // Promedio general ponderado por créditos (PGA) de las materias del usuario.
   // Solo cuentan las materias que ya tienen al menos una nota
-  getAverage(ownedSubjects: Subject[], filters: GradesAverageFilters): GradesAverageResponseDto {
+  async getAverage(
+    userId: string,
+    ownedSubjects: Subject[],
+    filters: GradesAverageFilters,
+  ): Promise<GradesAverageResponseDto> {
+    const gradesBySubject = groupBySubject(await loadGrades(userId));
     const inScope = ownedSubjects.filter(
       (s) => filters.semester === undefined || s.semester === filters.semester,
     );
@@ -281,7 +332,7 @@ export const gradeService = {
     let weightedHundredths = 0; // Σ promedio (en centésimas) × créditos
 
     for (const subject of inScope) {
-      const subjectGrades = gradesOf(subject.id);
+      const subjectGrades = gradesBySubject.get(subject.id) ?? [];
       if (subjectGrades.length === 0) {
         ungradedSubjects++; // sin notas no hay promedio: no entra al PGA
         continue;

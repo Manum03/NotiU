@@ -1,116 +1,84 @@
-import { randomBytes } from "node:crypto";
+import type { DecodedIdToken } from "firebase-admin/auth";
 import { config } from "../config/env";
-import { AuthResponseDto, ChangePasswordDto, LoginDto, RegisterDto } from "../models/auth.dto";
-import { Session } from "../models/session.model";
-import { PublicUser, User, toPublicUser } from "../models/user.model";
+import { db } from "../config/firebase";
+import { PublicUser, User, UserRole, toPublicUser } from "../models/user.model";
 import { HttpError } from "../utils/http-error";
-import { hashPassword, verifyPassword } from "../utils/password";
+import { toDateOrNow } from "../utils/firestore";
 
-// ---- "Base de datos" en memoria (se reinicia al reiniciar el servidor) ----
-const users: User[] = [];
-const sessions: Session[] = [];
-let nextUserId = 1;
+// Usuarios en Firestore: colección `users/{uid}`.
+// Todos los módulos ya leen Firestore de forma asíncrona, así que no hay caché en memoria.
 
-const createUser = (dto: RegisterDto): User => {
-  const user: User = {
-    id: nextUserId++,
-    name: dto.name,
-    email: dto.email,
-    passwordHash: hashPassword(dto.password),
-    role: dto.role ?? "student",
-    createdAt: new Date(),
-  };
-  users.push(user);
-  return user;
-};
+const usersCol = db.collection("users");
 
-// Usuario de prueba para poder hacer login sin registrarse
-createUser({ name: "Admin NotiU", email: "admin@notiu.com", password: "admin1234", role: "admin" });
-
-const createSession = (userId: number): Session => {
-  const now = new Date();
-  const session: Session = {
-    token: randomBytes(32).toString("hex"),
-    userId,
-    createdAt: now,
-    expiresAt: new Date(now.getTime() + config.sessionTtlMs),
-  };
-  sessions.push(session);
-  return session;
-};
-
-const toAuthResponse = (user: User, session: Session): AuthResponseDto => ({
-  token: session.token,
-  expiresAt: session.expiresAt.toISOString(),
-  user: toPublicUser(user),
+const fromDoc = (id: string, data: FirebaseFirestore.DocumentData): User => ({
+  id,
+  name: String(data.name ?? ""),
+  email: String(data.email ?? ""),
+  photoUrl: (data.photoUrl as string | null) ?? null,
+  role: (data.role as UserRole) ?? "student",
+  createdAt: toDateOrNow(data.createdAt),
 });
 
-const findUserById = (id: number): User => {
-  const user = users.find((u) => u.id === id);
-  if (!user) throw new HttpError(404, "Usuario no encontrado");
-  return user;
-};
+const roleFor = (email: string, current?: UserRole): UserRole =>
+  config.adminEmails.includes(email.toLowerCase()) ? "admin" : (current ?? "student");
 
 export const authService = {
-  register(dto: RegisterDto): AuthResponseDto {
-    if (users.some((u) => u.email === dto.email)) {
-      throw new HttpError(409, "Ya existe un usuario con ese email");
-    }
-    const user = createUser(dto);
-    return toAuthResponse(user, createSession(user.id));
-  },
+  // Se llama en cada petición autenticada: crea el usuario la primera vez que entra
+  async ensureUser(token: DecodedIdToken): Promise<User> {
+    const ref = usersCol.doc(token.uid);
+    const snap = await ref.get();
+    const email = token.email ?? "";
 
-  login(dto: LoginDto): AuthResponseDto {
-    const user = users.find((u) => u.email === dto.email);
-    // Mismo mensaje en ambos casos para no revelar qué emails existen
-    if (!user || !verifyPassword(dto.password, user.passwordHash)) {
-      throw new HttpError(401, "Email o contraseña incorrectos");
-    }
-    return toAuthResponse(user, createSession(user.id));
-  },
-
-  // Devuelve la sesión si el token existe y no ha expirado
-  validateToken(token: string): Session {
-    const index = sessions.findIndex((s) => s.token === token);
-    if (index === -1) throw new HttpError(401, "Token inválido");
-
-    const session = sessions[index];
-    if (session.expiresAt.getTime() < Date.now()) {
-      sessions.splice(index, 1);
-      throw new HttpError(401, "La sesión ha expirado");
-    }
-    return session;
-  },
-
-  logout(token: string): void {
-    const index = sessions.findIndex((s) => s.token === token);
-    if (index !== -1) sessions.splice(index, 1);
-  },
-
-  getProfile(userId: number): PublicUser {
-    return toPublicUser(findUserById(userId));
-  },
-    // Cambia el nombre visible del usuario (lo usa PATCH /api/profile)
-  updateName(userId: number, name: string): void {
-    findUserById(userId).name = name;
-  },
-
-  changePassword(userId: number, currentToken: string, dto: ChangePasswordDto): void {
-    const user = findUserById(userId);
-    if (!verifyPassword(dto.currentPassword, user.passwordHash)) {
-      throw new HttpError(401, "La contraseña actual es incorrecta");
-    }
-    user.passwordHash = hashPassword(dto.newPassword);
-
-    // Cierra las demás sesiones del usuario, conserva la actual
-    for (let i = sessions.length - 1; i >= 0; i--) {
-      if (sessions[i].userId === userId && sessions[i].token !== currentToken) {
-        sessions.splice(i, 1);
+    if (snap.exists) {
+      const user = fromDoc(snap.id, snap.data() ?? {});
+      const role = roleFor(email, user.role);
+      if (role !== user.role) {
+        user.role = role;
+        await ref.set({ role }, { merge: true });
       }
+      return user;
     }
+
+    const user: User = {
+      id: token.uid,
+      name: (token.name as string | undefined) || email.split("@")[0] || "Estudiante",
+      email,
+      photoUrl: (token.picture as string | undefined) ?? null,
+      role: roleFor(email),
+      createdAt: new Date(),
+    };
+    const { id: _id, ...data } = user;
+    await ref.set(data);
+    return user;
   },
 
-  listUsers(): PublicUser[] {
-    return users.map(toPublicUser);
+  async getProfile(userId: string): Promise<PublicUser> {
+    const snap = await usersCol.doc(userId).get();
+    if (!snap.exists) throw new HttpError(404, "Usuario no encontrado");
+    return toPublicUser(fromDoc(snap.id, snap.data() ?? {}));
+  },
+
+  // Varios usuarios por id (para mostrar nombres en conexiones y grupos).
+  // Los que no existen simplemente no aparecen en el mapa.
+  async getUsersByIds(ids: string[]): Promise<Map<string, PublicUser>> {
+    const unique = [...new Set(ids)];
+    const snaps = await Promise.all(unique.map((id) => usersCol.doc(id).get()));
+    const users = new Map<string, PublicUser>();
+    for (const snap of snaps) {
+      if (snap.exists) users.set(snap.id, toPublicUser(fromDoc(snap.id, snap.data() ?? {})));
+    }
+    return users;
+  },
+
+  // Cambia el nombre visible (lo usa PATCH /api/profile). 404 si el usuario no existe.
+  async updateName(userId: string, name: string): Promise<void> {
+    const ref = usersCol.doc(userId);
+    if (!(await ref.get()).exists) throw new HttpError(404, "Usuario no encontrado");
+    await ref.set({ name }, { merge: true });
+  },
+
+  async listUsers(): Promise<PublicUser[]> {
+    const snap = await usersCol.get();
+    return snap.docs.map((doc) => toPublicUser(fromDoc(doc.id, doc.data() ?? {})));
   },
 };

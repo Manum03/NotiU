@@ -17,40 +17,40 @@ import {
 } from "../utils/validators";
 
 export const subjectController = {
-  create(req: Request, res: Response<CreateSubjectResponseDto>): void {
+  async create(req: Request, res: Response<CreateSubjectResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const dto = validateCreateSubject(req.body); // valida y filtra el body
-    res.status(201).json(subjectService.createSubject(session.userId, dto));
+    res.status(201).json(await subjectService.createSubject(session.userId, dto));
   },
 
-  list(req: Request, res: Response<ListSubjectsResponseDto>): void {
+  async list(req: Request, res: Response<ListSubjectsResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const filters = validateListSubjectsQuery(req.query); // valida los query params
-    res.status(200).json(subjectService.listSubjects(session.userId, filters));
+    res.status(200).json(await subjectService.listSubjects(session.userId, filters));
   },
 
-  get(req: Request, res: Response<SubjectDetailDto>): void {
+  async get(req: Request, res: Response<SubjectDetailDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // valida el formato del ID
-    res.status(200).json(subjectService.getSubject(session.userId, subjectId));
+    res.status(200).json(await subjectService.getSubject(session.userId, subjectId));
   },
 
-  update(req: Request, res: Response<UpdateSubjectResponseDto>): void {
+  async update(req: Request, res: Response<UpdateSubjectResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
     const dto = validateUpdateSubject(req.body); // 400 si el body es inválido
-    res.status(200).json(subjectService.updateSubject(session.userId, subjectId, dto));
+    res.status(200).json(await subjectService.updateSubject(session.userId, subjectId, dto));
   },
 
-  getSchedule(req: Request, res: Response<SubjectScheduleDto>): void {
+  async getSchedule(req: Request, res: Response<SubjectScheduleDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
-    res.status(200).json(subjectService.getSchedule(session.userId, subjectId));
+    res.status(200).json(await subjectService.getSchedule(session.userId, subjectId));
   },
 
-  remove(req: Request, res: Response<DeleteSubjectResponseDto>): void {
+  async remove(req: Request, res: Response<DeleteSubjectResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const subjectId = validateSubjectId(req.params.subjectId); // 400 si el ID no es UUID
-    res.status(200).json(subjectService.deleteSubject(session.userId, subjectId));
+    res.status(200).json(await subjectService.deleteSubject(session.userId, subjectId));
   },
 };

@@ -15,32 +15,32 @@ import {
 } from "../utils/validators";
 
 export const studyGroupController = {
-  list(req: Request, res: Response<ListStudyGroupsResponseDto>): void {
+  async list(req: Request, res: Response<ListStudyGroupsResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const filters = validateListStudyGroupsQuery(req.query); // valida los query params
-    res.status(200).json(studyGroupService.listGroups(session.userId, filters));
+    res.status(200).json(await studyGroupService.listGroups(session.userId, filters));
   },
 
-  get(req: Request, res: Response<StudyGroupDetailDto>): void {
+  async get(req: Request, res: Response<StudyGroupDetailDto>): Promise<void> {
     const groupId = validateUuidParam(req.params.groupId, "groupId"); // 400 si el ID no es UUID
-    res.status(200).json(studyGroupService.getGroup(groupId));
+    res.status(200).json(await studyGroupService.getGroup(groupId));
   },
 
-  create(req: Request, res: Response<CreateStudyGroupResponseDto>): void {
+  async create(req: Request, res: Response<CreateStudyGroupResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const dto = validateCreateStudyGroup(req.body); // valida y filtra el body
-    res.status(201).json(studyGroupService.createGroup(session.userId, dto));
+    res.status(201).json(await studyGroupService.createGroup(session.userId, dto));
   },
 
-  join(req: Request, res: Response<JoinStudyGroupResponseDto>): void {
+  async join(req: Request, res: Response<JoinStudyGroupResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const groupId = validateUuidParam(req.params.groupId, "groupId"); // 400 si el ID no es UUID
-    res.status(200).json(studyGroupService.joinGroup(session.userId, groupId));
+    res.status(200).json(await studyGroupService.joinGroup(session.userId, groupId));
   },
 
-  leave(req: Request, res: Response<LeaveStudyGroupResponseDto>): void {
+  async leave(req: Request, res: Response<LeaveStudyGroupResponseDto>): Promise<void> {
     const { session } = res.locals as AuthLocals;
     const groupId = validateUuidParam(req.params.groupId, "groupId"); // 400 si el ID no es UUID
-    res.status(200).json(studyGroupService.leaveGroup(session.userId, groupId));
+    res.status(200).json(await studyGroupService.leaveGroup(session.userId, groupId));
   },
 };

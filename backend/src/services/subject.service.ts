@@ -1,10 +1,12 @@
 
 import { randomUUID } from "node:crypto";
+import { db } from "../config/firebase";
 
 import {
   CreateSubjectDto,
   CreateSubjectResponseDto,
   DeleteSubjectResponseDto,
+  GradesSummaryDto,
   ListSubjectsFilters,
   ListSubjectsResponseDto,
   SubjectDetailDto,
@@ -22,13 +24,44 @@ import {
 } from "../models/subject.model";
 
 import { HttpError } from "../utils/http-error";
+import { chunk, toDateOrNow } from "../utils/firestore";
 import { fold, normalize } from "../utils/text";
 import { gradeService } from "./grade.service";
 import { noteService } from "./note.service";
 
-// Almacenamiento temporal en memoria.
-// Los datos se pierden al reiniciar el servidor.
-const subjects: Subject[] = [];
+// Materias en Firestore: `users/{uid}/subjects/{subjectId}` (el id sigue siendo un UUID).
+export const subjectsCol = (userId: string) =>
+  db.collection("users").doc(userId).collection("subjects");
+
+const fromDoc = (userId: string, id: string, d: FirebaseFirestore.DocumentData): Subject => ({
+  id,
+  userId,
+  name: String(d.name ?? ""),
+  code: String(d.code ?? ""),
+  credits: Number(d.credits ?? 0),
+  semester: Number(d.semester ?? 1),
+  teacher: String(d.teacher ?? ""),
+  color: String(d.color ?? DEFAULT_COLOR),
+  status: d.status ?? "cursando",
+  priority: d.priority ?? "sin_fecha",
+  description: String(d.description ?? ""),
+  dueDate: d.dueDate ?? null,
+  dueTime: d.dueTime ?? null,
+  activityType: d.activityType ?? null,
+  reminder: d.reminder ?? { enabled: false },
+  notes: String(d.notes ?? ""),
+  progress: Number(d.progress ?? 0),
+  schedule: Array.isArray(d.schedule) ? d.schedule : [],
+  createdAt: toDateOrNow(d.createdAt),
+});
+
+// El userId va en la ruta del documento, no dentro de él
+const toDoc = ({ id: _id, userId: _userId, ...rest }: Subject) => rest;
+
+const loadOwnedSubjects = async (userId: string): Promise<Subject[]> => {
+  const snap = await subjectsCol(userId).get();
+  return snap.docs.map((doc) => fromDoc(userId, doc.id, doc.data()));
+};
 
 const DEFAULT_COLOR = "#800427";
 
@@ -50,7 +83,7 @@ const toSubjectResponse = (
   reminder: { ...reminder },
 });
 
-const toSubjectListItem = (s: Subject): SubjectListItemDto => ({
+const toSubjectListItem = (s: Subject, summary: GradesSummaryDto): SubjectListItemDto => ({
   id: s.id,
   name: s.name,
   code: s.code,
@@ -62,7 +95,7 @@ const toSubjectListItem = (s: Subject): SubjectListItemDto => ({
   color: s.color,
 
   // Promedio ponderado de las notas registradas (0 si la materia aún no tiene notas)
-  currentAverage: gradeService.getSummary(s.id).weightedAverage,
+  currentAverage: summary.weightedAverage,
   progress: s.progress,
   dueDate: s.dueDate,
   dueTime: s.dueTime,
@@ -70,30 +103,29 @@ const toSubjectListItem = (s: Subject): SubjectListItemDto => ({
   reminder: s.reminder,
 });
 
-const toSubjectDetail = (s: Subject): SubjectDetailDto => {
+const toSubjectDetail = (s: Subject, gradesSummary: GradesSummaryDto): SubjectDetailDto => {
   const schedule = sortSchedule(s.schedule);
 
   return {
     ...toSubjectResponse(s),
     schedule,
     room: schedule.find((block) => block.room)?.room ?? "",
-    gradesSummary: gradeService.getSummary(s.id), // { count, totalWeight, weightedAverage }
+    gradesSummary, // { count, totalWeight, weightedAverage }
   };
 };
 
-const getOwnedSubject = (
-  userId: number,
+// 404 si la materia no existe o no es del usuario (está en SU subcolección)
+const getOwnedSubject = async (
+  userId: string,
   subjectId: string,
-): Subject => {
-  const subject = subjects.find(
-    (s) => s.id === subjectId && s.userId === userId,
-  );
+): Promise<Subject> => {
+  const snap = await subjectsCol(userId).doc(subjectId).get();
 
-  if (!subject) {
+  if (!snap.exists) {
     throw new HttpError(404, "Materia no encontrada");
   }
 
-  return subject;
+  return fromDoc(userId, snap.id, snap.data() ?? {});
 };
 
 export const subjectService = {
@@ -101,13 +133,17 @@ export const subjectService = {
 
   // Materias del usuario, para uso de otros services y controllers.
   // No se envía tal cual al cliente: incluye el userId interno
-  getOwnedSubjects(userId: number): Subject[] {
-    return subjects.filter((s) => s.userId === userId);
+  getOwnedSubjects: loadOwnedSubjects,
+
+  // Cuántas materias tiene el usuario (estadísticas del perfil)
+  async countSubjects(userId: string): Promise<number> {
+    const snap = await subjectsCol(userId).count().get();
+    return snap.data().count;
   },
 
-  createSubject(userId: number, dto: CreateSubjectDto): CreateSubjectResponseDto {
+  async createSubject(userId: string, dto: CreateSubjectDto): Promise<CreateSubjectResponseDto> {
     // Solo se comparan las materias de ESTE usuario y de ESTE semestre
-    const sameSemester = subjects.filter((s) => s.userId === userId && s.semester === dto.semester);
+    const sameSemester = (await loadOwnedSubjects(userId)).filter((s) => s.semester === dto.semester);
 
     if (
       sameSemester.some(
@@ -155,7 +191,7 @@ export const subjectService = {
       createdAt: new Date(),
     };
 
-    subjects.push(subject);
+    await subjectsCol(userId).doc(subject.id).set(toDoc(subject));
 
     return {
       message: "Materia creada",
@@ -163,16 +199,21 @@ export const subjectService = {
     };
   },
 
-  listSubjects(
-    userId: number,
+  async listSubjects(
+    userId: string,
     filters: ListSubjectsFilters,
-  ): ListSubjectsResponseDto {
+  ): Promise<ListSubjectsResponseDto> {
     const term = filters.search
       ? fold(filters.search)
       : undefined;
 
-    const data = subjects
-      .filter((s) => s.userId === userId)
+    // Una sola lectura de notas para calcular el promedio de todas las materias
+    const [owned, summaries] = await Promise.all([
+      loadOwnedSubjects(userId),
+      gradeService.getSummariesByUser(userId),
+    ]);
+
+    const data = owned
       .filter(
         (s) =>
           filters.semester === undefined ||
@@ -199,7 +240,7 @@ export const subjectService = {
           a.semester - b.semester ||
           a.name.localeCompare(b.name, "es"),
       )
-      .map(toSubjectListItem);
+      .map((s) => toSubjectListItem(s, summaries.get(s.id) ?? gradeService.emptySummary()));
 
     return {
       data,
@@ -207,29 +248,29 @@ export const subjectService = {
     };
   },
 
-  getSubject(
-    userId: number,
+  async getSubject(
+    userId: string,
     subjectId: string,
-  ): SubjectDetailDto {
-    return toSubjectDetail(
-      getOwnedSubject(userId, subjectId),
-    );
+  ): Promise<SubjectDetailDto> {
+    const subject = await getOwnedSubject(userId, subjectId);
+    return toSubjectDetail(subject, await gradeService.getSummary(userId, subject.id));
   },
 
-  updateSubject(
-    userId: number,
+  async updateSubject(
+    userId: string,
     subjectId: string,
     dto: UpdateSubjectDto,
-  ): UpdateSubjectResponseDto {
-    const subject = getOwnedSubject(userId, subjectId);
+  ): Promise<UpdateSubjectResponseDto> {
+    const owned = await loadOwnedSubjects(userId);
+    const subject = owned.find((s) => s.id === subjectId);
+    if (!subject) throw new HttpError(404, "Materia no encontrada");
 
     const finalName = dto.name ?? subject.name;
     const finalCode = dto.code ?? subject.code;
     const finalSemester = dto.semester ?? subject.semester;
 
-    const others = subjects.filter(
+    const others = owned.filter(
       (s) =>
-        s.userId === userId &&
         s.id !== subject.id &&
         s.semester === finalSemester,
     );
@@ -292,17 +333,19 @@ export const subjectService = {
       subject.progress = dto.progress;
     }
 
+    await subjectsCol(userId).doc(subject.id).set(toDoc(subject));
+
     return {
       message: "Materia actualizada",
       subject: toSubjectResponse(subject),
     };
   },
 
-  getSchedule(
-    userId: number,
+  async getSchedule(
+    userId: string,
     subjectId: string,
-  ): SubjectScheduleDto {
-    const subject = getOwnedSubject(userId, subjectId);
+  ): Promise<SubjectScheduleDto> {
+    const subject = await getOwnedSubject(userId, subjectId);
 
     return {
       subjectId: subject.id,
@@ -320,16 +363,27 @@ export const subjectService = {
 
   // Borrado físico y en cascada: elimina las notas de la materia y luego la materia.
   // Es irreversible. Los apuntes que la referencien no se borran: quedan con subjectId = null
-  deleteSubject(userId: number, subjectId: string): DeleteSubjectResponseDto {
-    const subject = getOwnedSubject(userId, subjectId); // 404 si no existe o no es suya
+  async deleteSubject(userId: string, subjectId: string): Promise<DeleteSubjectResponseDto> {
+    const subject = await getOwnedSubject(userId, subjectId); // 404 si no existe o no es suya
 
-    // Todo es síncrono: no hay forma de ver la materia a medio borrar
-    const deletedGrades = gradeService.deleteBySubject(subject.id);
-    noteService.detachSubject(subject.id);
-    subjects.splice(
-      subjects.findIndex((s) => s.id === subject.id),
-      1,
-    );
+    const [gradeRefs, noteRefs] = await Promise.all([
+      gradeService.refsBySubject(userId, subject.id),
+      noteService.refsBySubject(userId, subject.id),
+    ]);
+
+    // Todo en batch (máx. 500 operaciones cada uno). La materia se borra en el último
+    // batch: si algo falla antes, la materia sigue ahí y se puede volver a intentar
+    const ops: ((batch: FirebaseFirestore.WriteBatch) => void)[] = [
+      ...gradeRefs.map((ref) => (batch: FirebaseFirestore.WriteBatch) => void batch.delete(ref)),
+      ...noteRefs.map((ref) => (batch: FirebaseFirestore.WriteBatch) => void batch.update(ref, { subjectId: null })),
+      (batch: FirebaseFirestore.WriteBatch) => void batch.delete(subjectsCol(userId).doc(subject.id)),
+    ];
+    for (const group of chunk(ops, 500)) {
+      const batch = db.batch();
+      group.forEach((op) => op(batch));
+      await batch.commit();
+    }
+    const deletedGrades = gradeRefs.length;
 
     return {
       message: "Materia y registros asociados eliminados",

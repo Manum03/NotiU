@@ -104,7 +104,7 @@ Las variables `EXPO_PUBLIC_*` de `mobile/.env` las lee Metro en tu computador, a
 API REST construida con **Node.js**, **TypeScript** y **Express 5**, con **Firebase Authentication** y **Cloud Firestore**.
 
 - **Autenticación con Firebase:** la app móvil registra e inicia sesión con el SDK de Firebase Auth (correo/contraseña o Google). Cada petición envía el **ID token** de Firebase y el backend lo verifica con Firebase Admin. Las contraseñas nunca pasan por el backend. El rol `admin` se asigna con la variable `ADMIN_EMAILS` (ya no se puede enviar `role` desde el cliente).
-- **Base de datos:** usuarios, ajustes, tareas, notificaciones, integraciones, dispositivos y recordatorios viven en **Firestore**. Las tareas importadas de Moodle/Classroom y las creadas por el estudiante comparten el mismo modelo (`source`: `MANUAL`, `MOODLE`, `CLASSROOM`). Los módulos de materias, notas, apuntes, conexiones, grupos y tips **todavía están en memoria** (pendiente de migrar).
+- **Base de datos:** usuarios, ajustes, tareas, notificaciones, integraciones, dispositivos y recordatorios viven en **Firestore**. Las tareas importadas de Moodle/Classroom y las creadas por el estudiante comparten el mismo modelo (`source`: `MANUAL`, `MOODLE`, `CLASSROOM`). Todos los módulos están en Firestore: perfiles (`profiles/{uid}`), materias, calificaciones y tips guardados en subcolecciones de `users/{uid}`, apuntes (`notes`), conexiones (`connections`, con `participants`), grupos de estudio (`studyGroups`, con `memberIds`) y el catálogo de tips (`tips`, que se siembra al arrancar si está vacío). Solo se usan consultas de un campo, así que no hacen falta índices compuestos.
 - **Integraciones:**
   - **Moodle** mediante el enlace privado de *Exportar calendario* (iCal). No requiere la contraseña del estudiante.
   - **Google Classroom** con OAuth de solo lectura (`classroom.courses.readonly`, `classroom.coursework.me.readonly`) y consulta periódica.
@@ -263,7 +263,6 @@ Flujo sugerido: `GET /api/auth/me` → `PUT /api/integrations/moodle` con `{"ica
 
 ### Limitaciones conocidas
 
-- Materias, notas, apuntes, conexiones, grupos de estudio y tips siguen en memoria (se pierden al reiniciar).
 - El enlace iCal de Moodle no indica si una tarea ya fue entregada: el estudiante la marca como completada en NotiU.
 - Google limita a 100 usuarios de prueba mientras la pantalla de consentimiento de Classroom no esté verificada.
 - Los jobs corren dentro del mismo proceso: en hostings que "duermen" el servidor, la sincronización se pausa mientras duerme.
